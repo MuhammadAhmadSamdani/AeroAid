@@ -124,9 +124,9 @@ namespace MissionPlanner.AeroAid.UI
                 Font = AeroDraw.UiFont(7.5f, FontStyle.Bold),
                 AutoSize = false,
                 Width = 200,
-                Height = 26,
+                Height = 22,
                 TextAlign = ContentAlignment.BottomLeft,
-                Margin = new Padding(8, 8, 0, 2)
+                Margin = new Padding(8, 4, 0, 2)
             };
             list.Controls.Add(l);
         }
@@ -139,7 +139,7 @@ namespace MissionPlanner.AeroAid.UI
                 Glyph = glyph,
                 ButtonStyle = AeroButtonStyle.Ghost,
                 TextAlignment = ContentAlignment.MiddleLeft,
-                Size = new Size(202, 38),
+                Size = new Size(202, 34),
                 Margin = new Padding(0, 1, 0, 1),
                 Padding = new Padding(14, 4, 8, 4),
                 GlyphSize = 15f,

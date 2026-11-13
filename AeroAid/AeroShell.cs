@@ -87,6 +87,13 @@ namespace MissionPlanner.AeroAid
                 // Safety: any loss of focus of the main window releases all held movement controls.
                 MainFormDeactivated += () => Flight.FlightControlManager.Instance.StopAll();
                 MainFormDeactivated += () => Camera.CameraPtzManager.Instance.StopAll();
+
+                // Keyboard flight/camera control (gated; see KeyboardControlManager)
+                Input.KeyboardControlManager.Instance.Install(mainForm, view);
+                MainFormDeactivated += () => Input.KeyboardControlManager.Instance.ReleaseAll();
+                FlightControlView.KeyHintsHook = pad => pad.SetHints(
+                    d => Input.ShortcutMap.KeyText(Input.ShortcutMap.KeyFor(MoveToAction(d))),
+                    Input.ShortcutMap.KeyText(Input.ShortcutMap.KeyFor(Input.ShortcutAction.Stop)));
                 mainForm.Deactivate += (s, e) => OnMainFormDeactivated();
 
                 // Fire detection runs in the background (waits for video; inactive without a model)
@@ -178,8 +185,24 @@ namespace MissionPlanner.AeroAid
             }
         }
 
+        private static Input.ShortcutAction MoveToAction(Flight.MoveDirection d)
+        {
+            switch (d)
+            {
+                case Flight.MoveDirection.Forward: return Input.ShortcutAction.Forward;
+                case Flight.MoveDirection.Backward: return Input.ShortcutAction.Backward;
+                case Flight.MoveDirection.Left: return Input.ShortcutAction.Left;
+                case Flight.MoveDirection.Right: return Input.ShortcutAction.Right;
+                case Flight.MoveDirection.Up: return Input.ShortcutAction.Up;
+                case Flight.MoveDirection.Down: return Input.ShortcutAction.Down;
+                case Flight.MoveDirection.YawLeft: return Input.ShortcutAction.YawLeft;
+                default: return Input.ShortcutAction.YawRight;
+            }
+        }
+
         private static void RegisterScreens(MainSwitcher view)
         {
+            view.AddScreen(new MainSwitcher.Screen(ScreenShortcuts, typeof(ShortcutsView), false));
             // persistent screens keep their state (map position, logs) between visits
             view.AddScreen(new MainSwitcher.Screen(ScreenDashboard, typeof(DashboardView), true));
             view.AddScreen(new MainSwitcher.Screen(ScreenFlightControl, typeof(FlightControlView), true));
@@ -214,6 +237,7 @@ namespace MissionPlanner.AeroAid
 
             bar.AddSection("Application");
             bar.AddItem(ScreenSettings, "Settings", AeroIcons.Settings, () => view.ShowScreen(ScreenSettings));
+            bar.AddItem(ScreenShortcuts, "Controls & Shortcuts", AeroIcons.Keyboard, () => view.ShowScreen(ScreenShortcuts));
             bar.AddItem(ScreenAbout, "About Application", AeroIcons.About, () => view.ShowScreen(ScreenAbout));
         }
     }

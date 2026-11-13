@@ -98,6 +98,13 @@ namespace MissionPlanner.AeroAid.Views
         protected override void OnScreenActivated()
         {
             speed.Value = Math.Max(1, Math.Min(10, (int)Math.Round(CameraSettings.PtzSpeed * 10)));
+            pad.SetHint(PtzDirection.Up, Input.ShortcutMap.KeyText(Input.ShortcutMap.KeyFor(Input.ShortcutAction.CameraUp)));
+            pad.SetHint(PtzDirection.Down, Input.ShortcutMap.KeyText(Input.ShortcutMap.KeyFor(Input.ShortcutAction.CameraDown)));
+            pad.SetHint(PtzDirection.Left, Input.ShortcutMap.KeyText(Input.ShortcutMap.KeyFor(Input.ShortcutAction.CameraLeft)));
+            pad.SetHint(PtzDirection.Right, Input.ShortcutMap.KeyText(Input.ShortcutMap.KeyFor(Input.ShortcutAction.CameraRight)));
+            pad.SetHint(PtzDirection.ZoomIn, Input.ShortcutMap.KeyText(Input.ShortcutMap.KeyFor(Input.ShortcutAction.ZoomIn)));
+            pad.SetHint(PtzDirection.ZoomOut, Input.ShortcutMap.KeyText(Input.ShortcutMap.KeyFor(Input.ShortcutAction.ZoomOut)));
+            pad.SetCenterHint(Input.ShortcutMap.KeyText(Input.ShortcutMap.KeyFor(Input.ShortcutAction.CameraCenter)));
             CameraConnectionManager.CapabilitiesChanged += OnCaps;
             CameraPtzManager.Instance.Feedback += OnFeedback;
             OnCaps();
