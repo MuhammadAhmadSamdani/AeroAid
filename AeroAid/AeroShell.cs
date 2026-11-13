@@ -83,12 +83,21 @@ namespace MissionPlanner.AeroAid
             {
                 RegisterScreens(view);
 
+                // Safety: any loss of focus of the main window releases all held movement controls.
+                MainFormDeactivated += () => Flight.FlightControlManager.Instance.StopAll();
+                mainForm.Deactivate += (s, e) => OnMainFormDeactivated();
+
                 if (!AeroSettings.UseSidebar)
                     return;
 
                 sidebar = new Sidebar();
                 BuildNavigation(sidebar, view);
                 mainForm.Controls.Add(sidebar);
+
+                // top bar (connection controls) in the AeroAid palette
+                mainForm.MainMenu.BackgroundImage = null;
+                mainForm.MainMenu.BackColor = BrandingManager.Palette.Background;
+                mainForm.panel1.BackColor = BrandingManager.Palette.Background;
 
                 // The sidebar replaces the stock view buttons; the connect controls stay in the top bar.
                 foreach (var item in new ToolStripItem[]
@@ -106,8 +115,6 @@ namespace MissionPlanner.AeroAid
                         sidebar.SetActive(name);
                 };
                 syncTimer.Start();
-
-                mainForm.Deactivate += (s, e) => OnMainFormDeactivated();
             }
             catch (Exception ex)
             {
@@ -121,23 +128,23 @@ namespace MissionPlanner.AeroAid
             }
         }
 
-        /// <summary>Called once the stock start-up screen has been shown.</summary>
+        /// <summary>Called once the stock start-up screen has been shown: open the AeroAid dashboard.</summary>
         public static void ShowStartScreen(MainSwitcher view)
         {
             if (!AeroSettings.UseSidebar)
                 return;
             try
             {
-                StartScreenHook?.Invoke(view);
+                var target = AeroSettings.StartScreen;
+                if (!view.screens.Exists(s => s.Name == target))
+                    target = ScreenDashboard;
+                main.AeroNavigate(target);
             }
             catch (Exception ex)
             {
-                log.Error("Start screen failed", ex);
+                log.Error("Start screen failed - staying on Flight Data", ex);
             }
         }
-
-        /// <summary>Set by later modules (dashboard) to choose the initial screen.</summary>
-        internal static Action<MainSwitcher> StartScreenHook;
 
         /// <summary>Fired when the main window loses focus: all held movement must stop.</summary>
         public static event Action MainFormDeactivated;
@@ -156,21 +163,21 @@ namespace MissionPlanner.AeroAid
 
         private static void RegisterScreens(MainSwitcher view)
         {
+            // persistent screens keep their state (map position, logs) between visits
+            view.AddScreen(new MainSwitcher.Screen(ScreenDashboard, typeof(DashboardView), true));
+            view.AddScreen(new MainSwitcher.Screen(ScreenFlightControl, typeof(FlightControlView), true));
+            view.AddScreen(new MainSwitcher.Screen(ScreenTelemetry, typeof(TelemetryView), true));
+            view.AddScreen(new MainSwitcher.Screen(ScreenSettings, typeof(SettingsView), false));
             view.AddScreen(new MainSwitcher.Screen(ScreenAbout, typeof(AboutView), false));
-            ScreenRegistrations?.Invoke(view);
         }
-
-        /// <summary>Extension point used by each AeroAid module to register its screens.</summary>
-        internal static Action<MainSwitcher> ScreenRegistrations;
-
-        /// <summary>Extension point used by each AeroAid module to add its sidebar entries.</summary>
-        internal static Action<Sidebar, MainSwitcher> PrimaryNavigation;
 
         private static void BuildNavigation(Sidebar bar, MainSwitcher view)
         {
             bar.AddSection("Operations");
-            PrimaryNavigation?.Invoke(bar, view);
+            bar.AddItem(ScreenDashboard, "Dashboard", AeroIcons.Dashboard, () => view.ShowScreen(ScreenDashboard));
+            bar.AddItem(ScreenFlightControl, "Flight Control", AeroIcons.FlightControl, () => view.ShowScreen(ScreenFlightControl));
             bar.AddItem("FlightPlanner", "Mission Planner", AeroIcons.Mission, () => main.AeroNavigate("FlightPlanner"));
+            bar.AddItem(ScreenTelemetry, "Telemetry", AeroIcons.Telemetry, () => view.ShowScreen(ScreenTelemetry));
 
             bar.AddSection("Mission Planner tools");
             bar.AddItem("FlightData", "Flight Data (HUD)", AeroIcons.Hud, () => main.AeroNavigate("FlightData"));
@@ -180,11 +187,8 @@ namespace MissionPlanner.AeroAid
             bar.AddItem("Help", "Help", AeroIcons.Help, () => main.AeroNavigate("Help"));
 
             bar.AddSection("Application");
-            SettingsNavigation?.Invoke(bar, view);
+            bar.AddItem(ScreenSettings, "Settings", AeroIcons.Settings, () => view.ShowScreen(ScreenSettings));
             bar.AddItem(ScreenAbout, "About Application", AeroIcons.About, () => view.ShowScreen(ScreenAbout));
         }
-
-        /// <summary>Extension point for the Settings / Shortcuts entries.</summary>
-        internal static Action<Sidebar, MainSwitcher> SettingsNavigation;
     }
 }

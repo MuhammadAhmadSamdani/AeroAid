@@ -125,6 +125,13 @@ namespace MissionPlanner.AeroAid
             set => SetBool("ui.sidebar", value);
         }
 
+        /// <summary>Screen shown after start-up (MainSwitcher screen name).</summary>
+        public static string StartScreen
+        {
+            get => GetString("ui.start_screen", AeroShell.ScreenDashboard);
+            set => SetString("ui.start_screen", value);
+        }
+
         // ---------------- Flight control limits (hard caps enforced here) ----------------
         public const double HardMaxHorizontalSpeed = 5.0; // m/s
         public const double HardMaxVerticalSpeed = 2.5; // m/s

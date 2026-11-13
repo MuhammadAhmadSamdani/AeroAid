@@ -136,11 +136,22 @@ namespace MissionPlanner.AeroAid.UI
             using (var cb = new SolidBrush(p.Muted))
                 g.DrawString(caption.ToUpperInvariant(), cf, cb, x, 12);
 
-            using (var vf = AeroDraw.UiFont(Height > 60 ? 15f : 12f, FontStyle.Bold))
+            var text = string.IsNullOrEmpty(unit) ? value : value + " " + unit;
+            var available = Width - 20f;
+            // shrink the value font until it fits the tile (keeps long values like "Disconnected" readable)
+            var size = Height > 60 ? 14f : 12f;
+            Font vf = AeroDraw.UiFont(size, FontStyle.Bold);
+            while (size > 8f && g.MeasureString(text, vf).Width > available)
+            {
+                vf.Dispose();
+                size -= 0.5f;
+                vf = AeroDraw.UiFont(size, FontStyle.Bold);
+            }
+
+            using (vf)
             using (var vb = new SolidBrush(level == StatusLevel.Unavailable ? p.Muted : p.Text))
             {
-                var text = string.IsNullOrEmpty(unit) ? value : value + " " + unit;
-                g.DrawString(text, vf, vb, new RectangleF(12, Height / 2f - 4, Width - 18, Height / 2f + 2),
+                g.DrawString(text, vf, vb, new RectangleF(10, Height / 2f - 4, Width - 14, Height / 2f + 2),
                     new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap });
             }
         }

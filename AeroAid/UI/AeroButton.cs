@@ -46,6 +46,8 @@ namespace MissionPlanner.AeroAid.UI
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                      ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw |
                      ControlStyles.SupportsTransparentBackColor | ControlStyles.Selectable, true);
+            // Click is raised by this control on mouse-up inside its bounds (see OnMouseUp)
+            SetStyle(ControlStyles.StandardClick | ControlStyles.StandardDoubleClick, false);
             BackColor = Color.Transparent;
             ForeColor = BrandingManager.Palette.Text;
             Font = new Font("Segoe UI Semibold", 10f);
@@ -162,8 +164,12 @@ namespace MissionPlanner.AeroAid.UI
         protected override void OnMouseUp(MouseEventArgs e)
         {
             base.OnMouseUp(e);
-            if (e.Button == MouseButtons.Left)
-                EndPress();
+            if (e.Button != MouseButtons.Left)
+                return;
+            var wasPressed = pressed;
+            EndPress();
+            if (wasPressed && Enabled && ClientRectangle.Contains(e.Location))
+                OnClick(EventArgs.Empty);
         }
 
         protected override void OnMouseCaptureChanged(EventArgs e)
@@ -203,10 +209,17 @@ namespace MissionPlanner.AeroAid.UI
             PressEnded?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>
+        /// Allows Enter to activate the focused button. OFF by default: in a ground station a stray key
+        /// press must never trigger a vehicle command (keyboard flight control uses the gated shortcut
+        /// system instead). Enable only for harmless buttons (navigation, settings).
+        /// </summary>
+        [Category("AeroAid")] public bool KeyboardActivation { get; set; }
+
         protected override void OnKeyDown(KeyEventArgs e)
         {
             base.OnKeyDown(e);
-            if (e.KeyCode == Keys.Enter && Enabled)
+            if (KeyboardActivation && e.KeyCode == Keys.Enter && Enabled)
                 OnClick(EventArgs.Empty);
         }
 

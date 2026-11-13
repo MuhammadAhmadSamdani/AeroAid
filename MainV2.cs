@@ -1345,6 +1345,10 @@ namespace MissionPlanner
                 case "Help":
                     MenuHelp_Click(this, EventArgs.Empty);
                     break;
+                case "Connect":
+                    // toggles connect/disconnect using the port/baud selected in the top bar
+                    MenuConnect_Click(this, EventArgs.Empty);
+                    break;
                 default:
                     MyView.ShowScreen(screen);
                     break;
