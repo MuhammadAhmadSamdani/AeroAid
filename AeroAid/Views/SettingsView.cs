@@ -42,6 +42,7 @@ namespace MissionPlanner.AeroAid.Views
             cards.Add(("Flight controls", AeroIcons.FlightControl, FlightSection()));
             cards.Add(("Camera", AeroIcons.Camera, CameraSection()));
             cards.Add(("Fire detection", AeroIcons.Fire, FireSection()));
+            cards.Add(("Voice", AeroIcons.Mic, VoiceSection()));
 
             foreach (var c in Enumerable.Reverse(cards))
             {

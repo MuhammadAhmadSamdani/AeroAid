@@ -37,6 +37,7 @@ namespace MissionPlanner.AeroAid.UI
             Font = UiFont(size, FontStyle.Bold),
             ForeColor = BrandingManager.Palette.Text,
             BackColor = Color.Transparent,
+            UseMnemonic = false,
             Margin = new Padding(0, 0, 0, 6)
         };
 
@@ -47,6 +48,7 @@ namespace MissionPlanner.AeroAid.UI
             Font = UiFont(size),
             ForeColor = BrandingManager.Palette.Muted,
             BackColor = Color.Transparent,
+            UseMnemonic = false,
             Margin = new Padding(0, 2, 0, 2)
         };
 
@@ -57,6 +59,7 @@ namespace MissionPlanner.AeroAid.UI
             Font = UiFont(size),
             ForeColor = BrandingManager.Palette.Text,
             BackColor = Color.Transparent,
+            UseMnemonic = false,
             Margin = new Padding(0, 2, 0, 2)
         };
 

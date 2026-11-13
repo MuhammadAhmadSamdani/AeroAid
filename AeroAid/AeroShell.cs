@@ -31,6 +31,7 @@ namespace MissionPlanner.AeroAid
         public const string ScreenSettings = "AeroSettings";
         public const string ScreenShortcuts = "AeroShortcuts";
         public const string ScreenAbout = "AeroAbout";
+        public const string ScreenVoice = "AeroVoice";
 
         private static Sidebar sidebar;
         private static Timer syncTimer;
@@ -91,8 +92,14 @@ namespace MissionPlanner.AeroAid
                 // Fire detection runs in the background (waits for video; inactive without a model)
                 Vision.FireAlertNotifier.Install(mainForm);
                 Vision.FireDetectionManager.Instance.ApplySettings();
+                // Voice: a recognised command only STARTS the confirmation workflow (UI thread)
+                Voice.VoiceCommandEngine.Instance.CommandRecognized += (cmd, text, conf) =>
+                    AeroDraw.SafeInvoke(mainForm, async () => await Voice.VoiceTakeoffWorkflow.RunAsync(text, conf));
+
                 mainForm.FormClosing += (s, e) =>
                 {
+                    Voice.VoiceCommandEngine.Instance.StopListening();
+                    Audio.MicrophoneManager.Instance.TurnOff();
                     Vision.FireDetectionManager.Instance.Stop();
                     Camera.VideoStreamManager.Instance.Stop();
                 };
@@ -180,6 +187,7 @@ namespace MissionPlanner.AeroAid
             view.AddScreen(new MainSwitcher.Screen(ScreenLiveCamera, typeof(LiveCameraView), true));
             view.AddScreen(new MainSwitcher.Screen(ScreenCameraControl, typeof(CameraControlView), true));
             view.AddScreen(new MainSwitcher.Screen(ScreenFireDetection, typeof(FireDetectionView), true));
+            view.AddScreen(new MainSwitcher.Screen(ScreenVoice, typeof(VoiceView), true));
             view.AddScreen(new MainSwitcher.Screen(ScreenSettings, typeof(SettingsView), false));
             view.AddScreen(new MainSwitcher.Screen(ScreenAbout, typeof(AboutView), false));
         }
@@ -195,6 +203,7 @@ namespace MissionPlanner.AeroAid
                 () => Vision.FireDetectionManager.Instance.AlertActive);
             bar.AddItem(ScreenTelemetry, "Telemetry", AeroIcons.Telemetry, () => view.ShowScreen(ScreenTelemetry));
             bar.AddItem(ScreenCameraControl, "Camera Control", AeroIcons.CameraControl, () => view.ShowScreen(ScreenCameraControl));
+            bar.AddItem(ScreenVoice, "Voice & Microphone", AeroIcons.Mic, () => view.ShowScreen(ScreenVoice));
 
             bar.AddSection("Mission Planner tools");
             bar.AddItem("FlightData", "Flight Data (HUD)", AeroIcons.Hud, () => main.AeroNavigate("FlightData"));
