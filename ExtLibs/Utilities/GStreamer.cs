@@ -1231,7 +1231,7 @@ namespace MissionPlanner.Utilities
 
             /* Set up the pipeline */
 
-            log.InfoFormat("GStreamer parse {0}", stringpipeline);
+            log.InfoFormat("GStreamer parse {0}", RedactCredentials(stringpipeline));
             var pipeline = NativeMethods.gst_parse_launch(
                 stringpipeline,
                 out error);
@@ -1243,10 +1243,14 @@ namespace MissionPlanner.Utilities
                 return;
             }
 
-            NativeMethods.gst_debug_bin_to_dot_file(pipeline, GstDebugGraphDetails.GST_DEBUG_GRAPH_SHOW_ALL,
-                "pipeline");
+            // the .dot dump contains all element properties in plain text - skip it when credentials are present
+            if (RedactCredentials(stringpipeline) == stringpipeline)
+            {
+                NativeMethods.gst_debug_bin_to_dot_file(pipeline, GstDebugGraphDetails.GST_DEBUG_GRAPH_SHOW_ALL,
+                    "pipeline");
 
-            log.Info("graphviz of pipeline is at " + Path.GetTempPath() + "pipeline.dot");
+                log.Info("graphviz of pipeline is at " + Path.GetTempPath() + "pipeline.dot");
+            }
 
             // appsink is part of the parse launch
             var appsink = NativeMethods.gst_bin_get_by_name(pipeline, "outsink");
@@ -1346,6 +1350,21 @@ namespace MissionPlanner.Utilities
             _onNewImage?.Invoke(null, null);
 
             log.Info("Gstreamer Exit");
+        }
+
+        /// <summary>
+        /// Removes passwords from a pipeline string before it is logged
+        /// (rtspsrc user-pw=... properties and user:password@ in URLs).
+        /// </summary>
+        public static string RedactCredentials(string pipeline)
+        {
+            if (string.IsNullOrEmpty(pipeline))
+                return pipeline;
+            var s = System.Text.RegularExpressions.Regex.Replace(pipeline,
+                "user-pw=(\"(?:[^\"\\\\]|\\\\.)*\"|\\S+)", "user-pw=***");
+            s = System.Text.RegularExpressions.Regex.Replace(s,
+                @"(\b[a-zA-Z][a-zA-Z0-9+.-]*://[^:/@\s""]+):[^@\s""]+@", "$1:***@");
+            return s;
         }
 
         ~GStreamer()

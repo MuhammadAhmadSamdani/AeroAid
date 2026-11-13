@@ -13,7 +13,7 @@ namespace MissionPlanner.AeroAid.Views
     /// Persistent AeroAid preferences. Each section is a card; values are written to the Mission Planner
     /// settings file (aeroaid.* keys) when "Save settings" is pressed.
     /// </summary>
-    public class SettingsView : AeroScreen
+    public partial class SettingsView : AeroScreen
     {
         private readonly List<Action> savers = new List<Action>();
         private readonly List<Action> loaders = new List<Action>();
@@ -40,19 +40,7 @@ namespace MissionPlanner.AeroAid.Views
             var cards = new List<(string name, string glyph, AeroCard card)>();
             cards.Add(("Appearance", AeroIcons.Settings, AppearanceSection()));
             cards.Add(("Flight controls", AeroIcons.FlightControl, FlightSection()));
-            foreach (var extra in ExtraSections)
-            {
-                try
-                {
-                    var r = extra(this);
-                    if (r.card != null)
-                        cards.Add(r);
-                }
-                catch (Exception ex)
-                {
-                    log4net.LogManager.GetLogger(typeof(SettingsView)).Error("Settings section failed", ex);
-                }
-            }
+            cards.Add(("Camera", AeroIcons.Camera, CameraSection()));
 
             foreach (var c in Enumerable.Reverse(cards))
             {
@@ -81,9 +69,6 @@ namespace MissionPlanner.AeroAid.Views
             LoadAll();
         }
 
-        /// <summary>Sections contributed by other modules: (settings view) => (name, glyph, card).</summary>
-        internal static List<Func<SettingsView, (string name, string glyph, AeroCard card)>> ExtraSections =
-            new List<Func<SettingsView, (string, string, AeroCard)>>();
 
         /// <summary>Registers load/save callbacks for a section's controls.</summary>
         internal void Bind(Action load, Action save)

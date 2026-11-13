@@ -39,8 +39,6 @@ namespace MissionPlanner.AeroAid.Views
         private readonly FlowLayoutPanel sideColumn;
         private readonly Label lastMessage = AeroDraw.Caption("", 9f);
 
-        /// <summary>Additional cards contributed by optional modules (camera preview, fire detection).</summary>
-        internal static Func<Control>[] ExtraCards = Array.Empty<Func<Control>>();
 
         public DashboardView() : base("Dashboard", "Live overview of the connected vehicle")
         {
@@ -65,7 +63,7 @@ namespace MissionPlanner.AeroAid.Views
             }
 
             // map + side column
-            var grid = new TableLayoutPanel { Dock = DockStyle.Top, Height = 470, ColumnCount = 2, BackColor = p.Background };
+            var grid = new TableLayoutPanel { Dock = DockStyle.Top, Height = 580, ColumnCount = 2, BackColor = p.Background };
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 380));
 
@@ -101,19 +99,7 @@ namespace MissionPlanner.AeroAid.Views
             open.Click += (s, e) => MainV2.instance.AeroNavigate(AeroShell.ScreenFlightControl);
             sideColumn.Controls.Add(quick);
 
-            foreach (var factory in ExtraCards)
-            {
-                try
-                {
-                    var c = factory();
-                    if (c != null)
-                        sideColumn.Controls.Add(c);
-                }
-                catch (Exception ex)
-                {
-                    log4net.LogManager.GetLogger(typeof(DashboardView)).Error("Dashboard card failed", ex);
-                }
-            }
+            sideColumn.Controls.Add(CameraCard());
 
             lastMessage.Dock = DockStyle.Top;
             lastMessage.Padding = new Padding(4, 6, 0, 0);
@@ -122,6 +108,28 @@ namespace MissionPlanner.AeroAid.Views
             Body.Controls.Add(flightRow);
             Body.Controls.Add(grid);
             Body.Controls.Add(statusRow);
+        }
+
+        private Control CameraCard()
+        {
+            var p = BrandingManager.Palette;
+            var card = new AeroCard { Title = "Camera preview", Glyph = AeroIcons.Camera, Width = 360, Height = 290 };
+            var video = new Camera.VideoView { Dock = DockStyle.Fill, ShowInfo = false };
+            var bar = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 46, BackColor = p.Surface, Padding = new Padding(0, 6, 0, 0) };
+            var start = AeroDraw.Button("Start / stop", AeroIcons.Play, AeroButtonStyle.Secondary, 150);
+            start.Click += (s, e) =>
+            {
+                var st = Camera.VideoStreamManager.Instance.State;
+                if (st == Camera.StreamState.Stopped || st == Camera.StreamState.Error) Camera.CameraUi.StartStream();
+                else Camera.VideoStreamManager.Instance.Stop();
+            };
+            var open = AeroDraw.Button("Live Camera", AeroIcons.Camera, AeroButtonStyle.Ghost, 160);
+            open.Click += (s, e) => MainV2.instance.AeroNavigate(AeroShell.ScreenLiveCamera);
+            bar.Controls.Add(start);
+            bar.Controls.Add(open);
+            card.Controls.Add(video);
+            card.Controls.Add(bar);
+            return card;
         }
 
         protected override void OnScreenActivated()
