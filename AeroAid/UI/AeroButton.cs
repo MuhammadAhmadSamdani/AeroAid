@@ -80,6 +80,16 @@ namespace MissionPlanner.AeroAid.UI
             set { if (isActive != value) { isActive = value; Invalidate(); } }
         }
 
+        /// <summary>When set, text and border use this colour (e.g. blinking red for an active alert).</summary>
+        [Browsable(false)]
+        public Color? AlertColor
+        {
+            get => alertColor;
+            set { if (alertColor != value) { alertColor = value; Invalidate(); } }
+        }
+
+        private Color? alertColor;
+
         [Category("AeroAid")] public int CornerRadius { get; set; } = BrandingManager.CornerRadius;
 
         [Category("AeroAid")] public ContentAlignment TextAlignment { get; set; } = ContentAlignment.MiddleCenter;
@@ -283,6 +293,12 @@ namespace MissionPlanner.AeroAid.UI
                     border = p.Accent;
                     text = p.Accent;
                 }
+            }
+
+            if (alertColor.HasValue && Enabled)
+            {
+                text = alertColor.Value;
+                border = alertColor.Value;
             }
 
             if (!Enabled)

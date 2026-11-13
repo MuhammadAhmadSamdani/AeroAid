@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using MissionPlanner.AeroAid.Branding;
 using MissionPlanner.AeroAid.Flight;
@@ -63,7 +64,7 @@ namespace MissionPlanner.AeroAid.Views
             }
 
             // map + side column
-            var grid = new TableLayoutPanel { Dock = DockStyle.Top, Height = 580, ColumnCount = 2, BackColor = p.Background };
+            var grid = new TableLayoutPanel { Dock = DockStyle.Top, Height = 730, ColumnCount = 2, BackColor = p.Background };
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 380));
 
@@ -100,6 +101,7 @@ namespace MissionPlanner.AeroAid.Views
             sideColumn.Controls.Add(quick);
 
             sideColumn.Controls.Add(CameraCard());
+            sideColumn.Controls.Add(FireCard());
 
             lastMessage.Dock = DockStyle.Top;
             lastMessage.Padding = new Padding(4, 6, 0, 0);
@@ -130,6 +132,45 @@ namespace MissionPlanner.AeroAid.Views
             card.Controls.Add(video);
             card.Controls.Add(bar);
             return card;
+        }
+
+        private AeroCard fireCard;
+        private Label fireStatus;
+
+        private Control FireCard()
+        {
+            var p = BrandingManager.Palette;
+            fireCard = new AeroCard { Title = "Fire detection", Glyph = AeroIcons.Fire, Width = 360, Height = 150 };
+            fireStatus = AeroDraw.Body("", 9.5f);
+            fireStatus.MaximumSize = new Size(330, 0);
+            fireStatus.Dock = DockStyle.Fill;
+            var open = AeroDraw.Button("Open Fire Detection", AeroIcons.Fire, AeroButtonStyle.Ghost, 220);
+            open.Dock = DockStyle.Bottom;
+            open.Click += (s, e) => MainV2.instance.AeroNavigate(AeroShell.ScreenFireDetection);
+            fireCard.Controls.Add(fireStatus);
+            fireCard.Controls.Add(open);
+            return fireCard;
+        }
+
+        private void UpdateFireCard()
+        {
+            var p = BrandingManager.Palette;
+            var m = Vision.FireDetectionManager.Instance;
+            var alert = m.CurrentAlert;
+            fireCard.AccentOverride = alert != null ? p.StatusCritical : (Color?)null;
+            if (alert != null)
+            {
+                fireStatus.Text = $"⚠ {alert.KindText.ToUpperInvariant()} DETECTED since {alert.Start:HH:mm:ss} (max {alert.MaxConfidence:P0})";
+                fireStatus.ForeColor = p.StatusCritical;
+                return;
+            }
+
+            var last = m.History.FirstOrDefault();
+            fireStatus.Text = m.State == Vision.FireDetectorState.Running
+                ? "Monitoring — no fire or smoke." + (last != null ? $"\nLast alert: {last.Start:HH:mm:ss} ({last.KindText})" : "")
+                : m.StatusMessage;
+            fireStatus.ForeColor = m.State == Vision.FireDetectorState.Running ? p.StatusOk
+                : m.State == Vision.FireDetectorState.Disabled ? p.Muted : p.StatusWarn;
         }
 
         protected override void OnScreenActivated()
@@ -181,6 +222,7 @@ namespace MissionPlanner.AeroAid.Views
             btnHold.Enabled = btnLand.Enabled = btnRtl.Enabled = hb && !busy;
 
             map.UpdateVehicle(t);
+            UpdateFireCard();
         }
     }
 }

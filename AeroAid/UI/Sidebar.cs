@@ -73,8 +73,7 @@ namespace MissionPlanner.AeroAid.UI
                 {
                     if (it.AlertState == null) continue;
                     var alert = SafeAlert(it);
-                    it.Button.ForeColor = alert && blinkOn ? p.StatusCritical : p.Text;
-                    it.Button.Invalidate();
+                    it.Button.AlertColor = alert && blinkOn ? p.StatusCritical : (Color?)null;
                 }
             };
             blinkTimer.Start();

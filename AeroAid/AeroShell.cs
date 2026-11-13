@@ -85,7 +85,17 @@ namespace MissionPlanner.AeroAid
 
                 // Safety: any loss of focus of the main window releases all held movement controls.
                 MainFormDeactivated += () => Flight.FlightControlManager.Instance.StopAll();
+                MainFormDeactivated += () => Camera.CameraPtzManager.Instance.StopAll();
                 mainForm.Deactivate += (s, e) => OnMainFormDeactivated();
+
+                // Fire detection runs in the background (waits for video; inactive without a model)
+                Vision.FireAlertNotifier.Install(mainForm);
+                Vision.FireDetectionManager.Instance.ApplySettings();
+                mainForm.FormClosing += (s, e) =>
+                {
+                    Vision.FireDetectionManager.Instance.Stop();
+                    Camera.VideoStreamManager.Instance.Stop();
+                };
 
                 if (!AeroSettings.UseSidebar)
                     return;
@@ -169,6 +179,7 @@ namespace MissionPlanner.AeroAid
             view.AddScreen(new MainSwitcher.Screen(ScreenTelemetry, typeof(TelemetryView), true));
             view.AddScreen(new MainSwitcher.Screen(ScreenLiveCamera, typeof(LiveCameraView), true));
             view.AddScreen(new MainSwitcher.Screen(ScreenCameraControl, typeof(CameraControlView), true));
+            view.AddScreen(new MainSwitcher.Screen(ScreenFireDetection, typeof(FireDetectionView), true));
             view.AddScreen(new MainSwitcher.Screen(ScreenSettings, typeof(SettingsView), false));
             view.AddScreen(new MainSwitcher.Screen(ScreenAbout, typeof(AboutView), false));
         }
@@ -180,6 +191,8 @@ namespace MissionPlanner.AeroAid
             bar.AddItem(ScreenFlightControl, "Flight Control", AeroIcons.FlightControl, () => view.ShowScreen(ScreenFlightControl));
             bar.AddItem("FlightPlanner", "Mission Planner", AeroIcons.Mission, () => main.AeroNavigate("FlightPlanner"));
             bar.AddItem(ScreenLiveCamera, "Live Camera", AeroIcons.Camera, () => view.ShowScreen(ScreenLiveCamera));
+            bar.AddItem(ScreenFireDetection, "Fire Detection", AeroIcons.Fire, () => view.ShowScreen(ScreenFireDetection),
+                () => Vision.FireDetectionManager.Instance.AlertActive);
             bar.AddItem(ScreenTelemetry, "Telemetry", AeroIcons.Telemetry, () => view.ShowScreen(ScreenTelemetry));
             bar.AddItem(ScreenCameraControl, "Camera Control", AeroIcons.CameraControl, () => view.ShowScreen(ScreenCameraControl));
 
