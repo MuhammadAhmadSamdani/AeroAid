@@ -27,6 +27,12 @@ namespace MissionPlanner.Controls
 
         bool inOnPaint = false;
 
+        /// <summary>
+        /// Corner radius (pixels) applied to every MyButton. 1 = original square look.
+        /// Set once at start-up by the application branding (AeroAid).
+        /// </summary>
+        public static int GlobalCornerRadius { get; set; } = 1;
+
         [System.ComponentModel.Browsable(true), System.ComponentModel.Category("Colors")]
         [DefaultValue(typeof(Color), "0x94, 0xc1, 0x1f")]
         public Color BGGradTop { get { return _BGGradTop; } set { _BGGradTop = value; this.Invalidate(); } }
@@ -79,7 +85,8 @@ namespace MissionPlanner.Controls
             {
                 Graphics gr = pevent.Graphics;
 
-                gr.Clear(this.BackColor);
+                // with rounded corners the area outside the button must match the parent
+                gr.Clear(GlobalCornerRadius > 1 && Parent != null ? Parent.BackColor : this.BackColor);
 
                 gr.SmoothingMode = SmoothingMode.AntiAlias;
 
@@ -93,7 +100,8 @@ namespace MissionPlanner.Controls
 
                 float wid = this.Height / 3f;
 
-                wid = 1;
+                // arc diameter; 1 keeps the original (square) appearance
+                wid = Math.Max(1, Math.Min(GlobalCornerRadius * 2, Math.Min(this.Width, this.Height) - 2));
 
                 int width = this.Width - 1;
                 int height = this.Height - 1;

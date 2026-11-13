@@ -710,6 +710,10 @@ namespace MissionPlanner
 
 
 
+#if !LIB
+            MissionPlanner.AeroAid.AeroShell.EnsureDefaultTheme();
+#endif
+
             if (Settings.Instance["theme"] == null)
             {
                 if (File.Exists($"{running_directory}custom.mpsystheme"))
@@ -1313,6 +1317,40 @@ namespace MissionPlanner
                 _connectionControl.CMB_serialport.Items.Add(item.Label);
             }
         }
+
+#if !LIB
+        /// <summary>
+        /// AeroAid sidebar navigation. Routes the stock screens through their original menu handlers
+        /// (which contain connection/parameter checks); anything else is shown directly.
+        /// </summary>
+        public void AeroNavigate(string screen)
+        {
+            switch (screen)
+            {
+                case "FlightData":
+                    MenuFlightData_Click(this, EventArgs.Empty);
+                    break;
+                case "FlightPlanner":
+                    MenuFlightPlanner_Click(this, EventArgs.Empty);
+                    break;
+                case "HWConfig":
+                    MenuSetup_Click(this, EventArgs.Empty);
+                    break;
+                case "SWConfig":
+                    MenuTuning_Click(this, EventArgs.Empty);
+                    break;
+                case "Simulation":
+                    MenuSimulation_Click(this, EventArgs.Empty);
+                    break;
+                case "Help":
+                    MenuHelp_Click(this, EventArgs.Empty);
+                    break;
+                default:
+                    MyView.ShowScreen(screen);
+                    break;
+            }
+        }
+#endif
 
         private void MenuFlightData_Click(object sender, EventArgs e)
         {
@@ -3194,6 +3232,11 @@ namespace MissionPlanner
             MyView.AddScreen(new MainSwitcher.Screen("Simulation", Simulation, true));
             MyView.AddScreen(new MainSwitcher.Screen("Help", typeof(GCSViews.Help), false));
 
+#if !LIB
+            // AeroAid: register custom screens and install the sidebar navigation
+            MissionPlanner.AeroAid.AeroShell.Install(this, MyView);
+#endif
+
             try
             {
                 if (Control.ModifierKeys == Keys.Shift)
@@ -3227,6 +3270,9 @@ namespace MissionPlanner
                 MenuFlightData_Click(this, e);
                 log.Info("show FlightData... Done");
                 MainMenu_ItemClicked(this, new ToolStripItemClickedEventArgs(MenuFlightData));
+#if !LIB
+                MissionPlanner.AeroAid.AeroShell.ShowStartScreen(MyView);
+#endif
             }
 
             // for long running tasks using own threads.

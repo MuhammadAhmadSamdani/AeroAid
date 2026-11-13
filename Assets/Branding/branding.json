@@ -1,0 +1,22 @@
+{
+  "_comment": "AeroAid central branding. Replace logo.png (same folder) to rebrand every logo location. Colours are #RRGGBB.",
+  "appName": "AeroAid",
+  "tagline": "Drone Ground Control Station",
+  "version": "1.0.0",
+  "company": "AeroAid",
+  "logoFile": "logo.png",
+  "cornerRadius": 10,
+  "animations": true,
+  "colors": {
+    "accent": "#D6A928",
+    "background": "#111111",
+    "surface": "#1B1B1B",
+    "surfaceAlt": "#252525",
+    "text": "#F5F5F5",
+    "muted": "#999999",
+    "statusOk": "#3FB950",
+    "statusWarn": "#D6A928",
+    "statusCritical": "#E5534B",
+    "statusIdle": "#6E6E6E"
+  }
+}

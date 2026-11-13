@@ -245,6 +245,18 @@ namespace MissionPlanner
             if (File.Exists(Settings.GetRunningDirectory() + "splashbg.png")) // 600*375
                 SplashBG = new Bitmap(Settings.GetRunningDirectory() + "splashbg.png");
 
+#if !LIB
+            // AeroAid branding: name, icon and splash come from Assets/Branding (branding.json + logo.png)
+            MissionPlanner.AeroAid.AeroShell.ApplyProgramBranding();
+            name = MissionPlanner.AeroAid.Branding.BrandingManager.AppName;
+            if (MissionPlanner.AeroAid.Branding.BrandingManager.Logo != null)
+            {
+                IconFile = MissionPlanner.AeroAid.Branding.BrandingManager.GetIconBitmap();
+                if (SplashBG == null)
+                    SplashBG = MissionPlanner.AeroAid.Branding.BrandingManager.CreateSplashImage(584, 336);
+            }
+#endif
+
             try
             {
                 if (!MainV2.Android)
@@ -288,7 +300,12 @@ namespace MissionPlanner
             string strVersion = File.Exists("version.txt")
                 ? File.ReadAllText("version.txt")
                 : System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString();
+#if !LIB
+            Splash.Text = name + " " + MissionPlanner.AeroAid.Branding.BrandingManager.Version +
+                          " (Mission Planner " + Application.ProductVersion + " build " + strVersion + ")";
+#else
             Splash.Text = name + " " + Application.ProductVersion + " build " + strVersion;
+#endif
             Console.WriteLine("Splash.Show()");
             Splash.Show();
 

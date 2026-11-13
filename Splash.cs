@@ -25,6 +25,16 @@ namespace MissionPlanner
                 pictureBox1.Visible = true;
             }
 
+#if !LIB
+            // The AeroAid splash image already contains name, version and the Mission Planner attribution.
+            if (MissionPlanner.AeroAid.Branding.BrandingManager.Logo != null)
+            {
+                label1.Visible = false;
+                TXT_version.Visible = false;
+                BackColor = MissionPlanner.AeroAid.Branding.BrandingManager.Palette.Background;
+            }
+#endif
+
             Console.WriteLine("Splash .ctor");
         }
 
