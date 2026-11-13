@@ -29,7 +29,7 @@ namespace MissionPlanner.AeroAid.UI
             ForeColor = p.Text;
             Font = AeroDraw.UiFont(9.5f);
 
-            Body = new Panel
+            Body = new NoJumpPanel
             {
                 Dock = DockStyle.Fill,
                 BackColor = p.Background,
@@ -68,9 +68,17 @@ namespace MissionPlanner.AeroAid.UI
 
         public bool IsScreenActive { get; private set; }
 
+        /// <summary>Scrollable panel that does not jump to whichever child receives focus.</summary>
+        private sealed class NoJumpPanel : Panel
+        {
+            protected override Point ScrollToControl(Control activeControl) => DisplayRectangle.Location;
+        }
+
         public void Activate()
         {
             IsScreenActive = true;
+            if (Body.AutoScroll)
+                Body.AutoScrollPosition = Point.Empty;
             try
             {
                 OnScreenActivated();
