@@ -3,6 +3,28 @@
 Branch `custom-gcs`, based on Mission Planner 1.3.83 (tag `original-baseline`). There is one commit per phase;
 `git log --oneline original-baseline..custom-gcs` lists them.
 
+## AI Detection page (2026-11-15)
+
+The Fire Detection page was transformed **in place** into **AI Detection**, a multi-category, multi-model monitoring
+page. The fire/smoke functionality and its settings are preserved and migrated (`fire.*` keys become the defaults for
+`ai.*`, and the old fire model becomes the first model entry).
+
+| File | Change |
+|---|---|
+| `AeroAid/Views/FireDetectionView.cs` → `AiDetectionView.cs` | Redesigned page: alert banner, status tiles (AI engine, models, camera, live detections, active alerts, inference), category filter chips, live feed with category overlays, per-category status rows (operational / no model / filtered, live confidence, counts), detection history with thumbnails and a detail pane (captured frame, category, confidence, time, camera source, model, status, Acknowledge) |
+| `AeroAid/Vision/FireDetectionManager.cs` → `AiDetectionManager.cs` | Multi-model engine (all enabled models per frame, background thread), category filters, per-category alert episodes with acknowledgement, captured frames, extended CSV |
+| `AeroAid/Vision/FireAlertNotifier.cs` → `DetectionAlertNotifier.cs` | Category-specific, stacked, non-activating alert toasts ("Injured person detected"…) |
+| `AeroAid/Views/SettingsView.Fire.cs` → `SettingsView.Ai.cs` | Model list (add/remove/enable, per-model status and categories), thresholds, alert options, mapping help |
+| `AeroAid/Vision/DetectionCategories.cs` (new) | Category registry: Fire, Injured person, Flood, Damaged building, Smoke, Other emergency; keyword mapping; extra categories via `categories.json` |
+| `AeroAid/Vision/AiSettings.cs` (new) | Model configuration (`ai.models`), category filters, options, migration of `fire.*` settings |
+| `AeroAid/Vision/YoloOnnxDetector.cs` | Classes mapped to categories (keywords or explicit `class=category` in `<model>.labels.txt` / `labels.txt`); unrelated classes ignored |
+| `AeroAid/AeroShell.cs`, `Views/DashboardView.cs`, `Views/SettingsView.cs`, `Input/KeyboardControlManager.cs`, `Views/ShortcutsView.cs`, `UI/AeroIcons.cs` | Sidebar "AI Detection" (blinks on unacknowledged alerts), Dashboard AI summary card, start-screen and keyboard screen lists updated (the old start-screen value is mapped to the new page) |
+
+Verified with two test-fixture models, which are not shipped. Fire, smoke, injured person and flood were detected
+together, a `car` class was ignored, and categories without a model showed "no model". The filter test removed a
+category's overlay and ended its alert. Acknowledgement, history, thumbnails, the detail pane and the CSV all worked.
+Real injured-person, flood and damaged-building models have **not** been integrated or tested.
+
 ## Version 1.0.0 (2026-11-13)
 
 ### Modified existing files (every hook is guarded with `#if !LIB` where the file is shared with the LIB build)

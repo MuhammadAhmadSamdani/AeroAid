@@ -12,26 +12,22 @@ using Microsoft.ML.OnnxRuntime.Tensors;
 
 namespace MissionPlanner.AeroAid.Vision
 {
-    public enum DetectionKind
-    {
-        Fire,
-        Smoke,
-        Other
-    }
-
     /// <summary>One detected object; box coordinates are normalised to the source frame (0..1).</summary>
     public sealed class Detection
     {
-        public DetectionKind Kind;
+        /// <summary>Emergency category of the class, or null for classes that are not an emergency category.</summary>
+        public DetectionCategory Category;
         public string Label = "";
         public float Confidence;
         public RectangleF Box;
+        public string ModelName = "";
     }
 
     /// <summary>
     /// Runs a YOLO object-detection model exported to ONNX (Ultralytics YOLOv5/v8/v11 or an end-to-end
-    /// export with NMS) on video frames. Classes whose name contains "fire"/"flame" are treated as fire and
-    /// "smoke" as smoke. Class names come from the model metadata ("names") or a labels.txt file next to the model.
+    /// export with NMS) on video frames. Class names come from "&lt;model&gt;.labels.txt", "labels.txt" or the model
+    /// metadata ("names"). Each class is mapped to a <see cref="DetectionCategory"/> by keyword, or explicitly with
+    /// a labels line "class_name=category_id" (e.g. "person_lying=injured_person").
     /// </summary>
     public sealed class YoloOnnxDetector : IDisposable
     {
@@ -40,10 +36,15 @@ namespace MissionPlanner.AeroAid.Vision
         private readonly int inputW;
         private readonly int inputH;
         private readonly string[] classNames;
+        private readonly DetectionCategory[] classCategories;
 
         public string ModelPath { get; }
+        public string ModelName => Path.GetFileName(ModelPath);
         public IReadOnlyList<string> ClassNames => classNames;
         public string Description { get; }
+
+        /// <summary>Categories this model can detect (classes mapped to a category).</summary>
+        public IReadOnlyList<DetectionCategory> Categories => classCategories.Where(c => c != null).Distinct().ToList();
 
         public YoloOnnxDetector(string modelPath)
         {
@@ -60,19 +61,34 @@ namespace MissionPlanner.AeroAid.Vision
             inputH = dims[2] > 0 ? dims[2] : 640;
             inputW = dims[3] > 0 ? dims[3] : 640;
 
-            classNames = LoadClassNames(modelPath, session);
-            Description = $"{Path.GetFileName(modelPath)} • input {inputW}x{inputH} • classes: {string.Join(", ", classNames)}";
+            var explicitMap = new Dictionary<int, string>();
+            classNames = LoadClassNames(modelPath, session, explicitMap);
+            classCategories = classNames.Select((n, i) =>
+                explicitMap.TryGetValue(i, out var id) ? DetectionCategories.Get(id) : DetectionCategories.Match(n)).ToArray();
+            Description = $"{Path.GetFileName(modelPath)} • input {inputW}x{inputH} • classes: " +
+                          string.Join(", ", classNames.Select((n, i) => classCategories[i] == null ? n + " (ignored)" : n + "→" + classCategories[i].Name));
         }
 
         public void Dispose() => session.Dispose();
 
-        private static string[] LoadClassNames(string modelPath, InferenceSession s)
+        private static string[] LoadClassNames(string modelPath, InferenceSession s, Dictionary<int, string> explicitMap)
         {
-            var labels = Path.Combine(Path.GetDirectoryName(modelPath) ?? "", "labels.txt");
-            if (File.Exists(labels))
+            var dir = Path.GetDirectoryName(modelPath) ?? "";
+            foreach (var labels in new[] { Path.Combine(dir, Path.GetFileNameWithoutExtension(modelPath) + ".labels.txt"), Path.Combine(dir, "labels.txt") })
             {
-                var lines = File.ReadAllLines(labels).Select(l => l.Trim()).Where(l => l.Length > 0).ToArray();
-                if (lines.Length > 0) return lines;
+                if (!File.Exists(labels)) continue;
+                var lines = File.ReadAllLines(labels).Select(l => l.Trim()).Where(l => l.Length > 0 && !l.StartsWith("#")).ToArray();
+                if (lines.Length == 0) continue;
+                var names = new string[lines.Length];
+                for (var i = 0; i < lines.Length; i++)
+                {
+                    var parts = lines[i].Split('=');
+                    names[i] = parts[0].Trim();
+                    if (parts.Length > 1 && parts[1].Trim().Length > 0)
+                        explicitMap[i] = parts[1].Trim().ToLowerInvariant();
+                }
+
+                return names;
             }
 
             try
@@ -92,14 +108,6 @@ namespace MissionPlanner.AeroAid.Vision
             }
 
             return new string[0];
-        }
-
-        public static DetectionKind Classify(string label)
-        {
-            var l = (label ?? "").ToLowerInvariant();
-            if (l.Contains("smoke")) return DetectionKind.Smoke;
-            if (l.Contains("fire") || l.Contains("flame")) return DetectionKind.Fire;
-            return DetectionKind.Other;
         }
 
         private string NameOf(int cls) => cls >= 0 && cls < classNames.Length ? classNames[cls] : "class" + cls;
@@ -193,7 +201,8 @@ namespace MissionPlanner.AeroAid.Vision
             var label = NameOf(cls);
             list.Add(new Detection
             {
-                Kind = Classify(label),
+                Category = cls >= 0 && cls < classCategories.Length ? classCategories[cls] : null,
+                ModelName = ModelName,
                 Label = label,
                 Confidence = conf,
                 Box = new RectangleF(cx - w / 2, cy - h / 2, w, h)

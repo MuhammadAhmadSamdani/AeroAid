@@ -16,6 +16,7 @@ namespace MissionPlanner.AeroAid.UI
         public const string Mission = ""; // Map pin
         public const string Camera = ""; // Video
         public const string Fire = ""; // Warning
+        public const string AiDetection = ""; // View (eye)
         public const string Telemetry = ""; // Diagnostic
         public const string CameraControl = ""; // Camera
         public const string Settings = ""; // Gear

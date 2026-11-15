@@ -101,7 +101,7 @@ namespace MissionPlanner.AeroAid.Views
             sideColumn.Controls.Add(quick);
 
             sideColumn.Controls.Add(CameraCard());
-            sideColumn.Controls.Add(FireCard());
+            sideColumn.Controls.Add(AiCard());
 
             lastMessage.Dock = DockStyle.Top;
             lastMessage.Padding = new Padding(4, 6, 0, 0);
@@ -134,43 +134,46 @@ namespace MissionPlanner.AeroAid.Views
             return card;
         }
 
-        private AeroCard fireCard;
-        private Label fireStatus;
+        private AeroCard aiCard;
+        private Label aiStatus;
 
-        private Control FireCard()
+        private Control AiCard()
         {
-            var p = BrandingManager.Palette;
-            fireCard = new AeroCard { Title = "Fire detection", Glyph = AeroIcons.Fire, Width = 360, Height = 150 };
-            fireStatus = AeroDraw.Body("", 9.5f);
-            fireStatus.MaximumSize = new Size(330, 0);
-            fireStatus.Dock = DockStyle.Fill;
-            var open = AeroDraw.Button("Open Fire Detection", AeroIcons.Fire, AeroButtonStyle.Ghost, 220);
+            aiCard = new AeroCard { Title = "AI detection", Glyph = AeroIcons.AiDetection, Width = 360, Height = 160 };
+            aiStatus = AeroDraw.Body("", 9.5f);
+            aiStatus.MaximumSize = new Size(330, 0);
+            aiStatus.Dock = DockStyle.Fill;
+            var open = AeroDraw.Button("Open AI Detection", AeroIcons.AiDetection, AeroButtonStyle.Ghost, 220);
             open.Dock = DockStyle.Bottom;
-            open.Click += (s, e) => MainV2.instance.AeroNavigate(AeroShell.ScreenFireDetection);
-            fireCard.Controls.Add(fireStatus);
-            fireCard.Controls.Add(open);
-            return fireCard;
+            open.Click += (s, e) => MainV2.instance.AeroNavigate(AeroShell.ScreenAiDetection);
+            aiCard.Controls.Add(aiStatus);
+            aiCard.Controls.Add(open);
+            return aiCard;
         }
 
-        private void UpdateFireCard()
+        private void UpdateAiCard()
         {
             var p = BrandingManager.Palette;
-            var m = Vision.FireDetectionManager.Instance;
-            var alert = m.CurrentAlert;
-            fireCard.AccentOverride = alert != null ? p.StatusCritical : (Color?)null;
-            if (alert != null)
+            var m = Vision.AiDetectionManager.Instance;
+            var alerts = m.ActiveAlerts;
+            aiCard.AccentOverride = alerts.Count > 0 ? alerts[0].Category.Color : (Color?)null;
+            if (alerts.Count > 0)
             {
-                fireStatus.Text = $"⚠ {alert.KindText.ToUpperInvariant()} DETECTED since {alert.Start:HH:mm:ss} (max {alert.MaxConfidence:P0})";
-                fireStatus.ForeColor = p.StatusCritical;
+                aiStatus.Text = string.Join("\n", alerts.Take(4).Select(a =>
+                    $"⚠ {a.Category.AlertTitle.ToUpperInvariant()} since {a.Start:HH:mm:ss} ({a.MaxConfidence:P0})" +
+                    (a.Acknowledged ? " ✓" : "")));
+                aiStatus.ForeColor = alerts.Any(a => !a.Acknowledged) ? p.StatusCritical : p.StatusWarn;
                 return;
             }
 
+            var operational = Vision.DetectionCategories.All.Where(c => m.IsOperational(c.Id)).Select(c => c.Name).ToList();
             var last = m.History.FirstOrDefault();
-            fireStatus.Text = m.State == Vision.FireDetectorState.Running
-                ? "Monitoring — no fire or smoke." + (last != null ? $"\nLast alert: {last.Start:HH:mm:ss} ({last.KindText})" : "")
+            aiStatus.Text = m.State == Vision.AiEngineState.Running
+                ? "Monitoring — no alerts.\nActive categories: " + string.Join(", ", operational) +
+                  (last != null ? $"\nLast alert: {last.Start:HH:mm:ss} ({last.Category.Name})" : "")
                 : m.StatusMessage;
-            fireStatus.ForeColor = m.State == Vision.FireDetectorState.Running ? p.StatusOk
-                : m.State == Vision.FireDetectorState.Disabled ? p.Muted : p.StatusWarn;
+            aiStatus.ForeColor = m.State == Vision.AiEngineState.Running ? p.StatusOk
+                : m.State == Vision.AiEngineState.Disabled ? p.Muted : p.StatusWarn;
         }
 
         protected override void OnScreenActivated()
@@ -222,7 +225,7 @@ namespace MissionPlanner.AeroAid.Views
             btnHold.Enabled = btnLand.Enabled = btnRtl.Enabled = hb && !busy;
 
             map.UpdateVehicle(t);
-            UpdateFireCard();
+            UpdateAiCard();
         }
     }
 }

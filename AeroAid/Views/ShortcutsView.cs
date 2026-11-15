@@ -63,7 +63,7 @@ namespace MissionPlanner.AeroAid.Views
         private void UpdateAvailability()
         {
             availability.Text = "Keys are intentionally inactive on this screen; they work on Dashboard, Flight Control, Live Camera, " +
-                                "Camera Control and Fire Detection." +
+                                "Camera Control and AI Detection." +
                                 (AeroSettings.KeyboardFlightEnabled ? "" : "  Drone keys are currently DISABLED in Settings › Flight controls.");
             availability.ForeColor = AeroSettings.KeyboardFlightEnabled ? BrandingManager.Palette.Muted : BrandingManager.Palette.StatusWarn;
         }

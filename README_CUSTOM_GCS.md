@@ -1,9 +1,9 @@
-# AeroAid — Custom Drone Ground Control Station
+﻿# AeroAid — Custom Drone Ground Control Station
 
 AeroAid is a branded, extended build of **Mission Planner** (the ArduPilot ground control station).
 All stock Mission Planner functions are still available: MAVLink connections, mission planning, the HUD
 and map, parameters, setup/calibration, firmware and SITL. AeroAid adds a new interface on top, plus
-button and keyboard flight control, voice takeoff, IMOU/ONVIF camera integration and AI fire/smoke detection.
+button and keyboard flight control, voice takeoff, IMOU/ONVIF camera integration and multi-category AI detection.
 
 > AeroAid is a derivative of Mission Planner (GPLv3). See [COPYING.txt](COPYING.txt) and the About screen.
 
@@ -15,11 +15,11 @@ button and keyboard flight control, voice takeoff, IMOU/ONVIF camera integration
 |---|---|
 | Branding | One logo file (`Assets/Branding/logo.png`) and one config (`branding.json`) drive the name, version, colours, window/taskbar icon, splash, sidebar and About screen |
 | Theme | Mustard/black palette (`AeroAid.mpsystheme`), rounded animated buttons, cards and status tiles |
-| Navigation | Left sidebar: Dashboard, Flight Control, Mission Planner, Live Camera, Fire Detection, Telemetry, Camera Control, Voice & Microphone, plus the stock Mission Planner tools, Settings, Controls & Shortcuts, About |
+| Navigation | Left sidebar: Dashboard, Flight Control, Mission Planner, Live Camera, AI Detection, Telemetry, Camera Control, Voice & Microphone, plus the stock Mission Planner tools, Settings, Controls & Shortcuts, About |
 | Flight | Hold-to-move pad (MAVLink `SET_POSITION_TARGET_LOCAL_NED`), flight-mode selector built from the vehicle's mode list, Arm/Disarm, Take off, Land, RTL, Hold position |
 | Voice | Offline "take off" recognition → pre-flight checks → **mandatory ARM confirmation** → **TAKEOFF confirmation** |
 | Camera | RTSP live video (GStreamer), ONVIF capability detection, PTZ pad (only enabled for features the camera reports), snapshot, fullscreen |
-| Fire detection | YOLO (ONNX) fire/smoke detection on the live video, run in the background, with overlays, debounced alerts, history, screenshots and a CSV log |
+| AI detection | Multi-category, multi-model YOLO (ONNX) detection on the live video (fire, injured person, flood, damaged building, smoke, other emergencies), run in the background, with filters, overlays, per-category alerts, acknowledgement, history, captured frames and a CSV log |
 | Keyboard | Configurable shortcuts with key-down/key-up movement and focus-loss safety |
 
 ## 2. New features (by screen)
@@ -27,21 +27,24 @@ button and keyboard flight control, voice takeoff, IMOU/ONVIF camera integration
 - **Dashboard.** Connection, vehicle type, mode, armed state, battery % and voltage, GPS fix and satellites, EKF and
   pre-arm status (green/yellow/red/grey). Latitude, longitude, altitude, ground and air speed, heading, roll/pitch/yaw
   and climb rate. A live map using Mission Planner's map provider and cache, quick controls, a camera preview and the
-  fire-detection status. All values are live MAVLink data from `MainV2.comPort.MAV.cs`.
+  AI-detection status. All values are live MAVLink data from `MainV2.comPort.MAV.cs`.
 - **Flight Control.** A directional pad (forward, back, left, right, up, down, yaw left/right, STOP), the vehicle's
   flight modes (current mode highlighted), Arm / Disarm / GUIDED / Hold position / Take off (altitude field) / Land / RTL,
   the active limits and a command log.
 - **Live Camera.** Start/stop, main or sub stream, camera-audio playback, fullscreen, snapshot, stream status and errors.
 - **Camera Control.** The PTZ pad (up, down, left, right, zoom ±, center), PTZ speed, detected capabilities and device
   information, and an explanation of the audio channels.
-- **Fire Detection.** Video with boxes, a red alert banner, fire and smoke confidence meters, the threshold slider,
-  detection history (double-click to open the screenshot) and the detections folder.
+- **AI Detection.** Live feed with category-coloured boxes. Above it: an alert banner (red until acknowledged) and status tiles
+  (AI engine, models, camera, live detections, active alerts, inference time). Category filter chips: All, Fire,
+  Injured person, Flood, Damaged building, Smoke, Other. A per-category status panel shows Operational vs "no model",
+  live confidence and event counts. Detection history has thumbnails and a detail pane (captured frame, category,
+  confidence, time, camera source, model, status, Acknowledge).
 - **Telemetry.** Link health (heartbeat age, link quality, port, system/component IDs, firmware), vehicle state,
   GPS, battery, an error banner and the vehicle's system messages.
 - **Voice & Microphone.** Microphone selection, ON/OFF and live input level. Voice listening with a timeout countdown,
   the recognised text, a pre-flight check button, Arm and **Disarm** buttons, and the workflow log.
 - **Settings.** Sections for Appearance (theme, animations, sidebar, start screen), Flight controls (speed and
-  altitude limits, takeoff altitude, voice pre-flight minimums, confirmations, keyboard), Camera, Fire detection and Voice.
+  altitude limits, takeoff altitude, voice pre-flight minimums, confirmations, keyboard), Camera, AI detection (models, thresholds, alerts) and Voice.
 - **Controls & Keyboard Shortcuts.** A reference and editor for every key, with conflict checks and Restore defaults.
 - **About.** Logo, versions, and the GPLv3 / Mission Planner / ArduPilot attribution.
 
@@ -67,7 +70,7 @@ MainV2.cs    ── AeroShell.EnsureDefaultTheme()     (first run → Mustard/Bl
 | `Flight/FlightControlManager`, `FlightActions`, `FlightPad` | Velocity streaming, modes, arm/disarm, takeoff/land/RTL, confirmations |
 | `Input/KeyboardControlManager`, `ShortcutMap` | Gated `IMessageFilter` keyboard control and the configurable key map |
 | `Camera/*` | `VideoStreamManager` (GStreamer), `RtspProbe`, `OnvifClient`, `CameraConnectionManager`, `CameraPtzManager`, `VideoView` |
-| `Vision/*` | `YoloOnnxDetector` (ONNX Runtime), `FireDetectionManager` (background loop, alerts), `FireAlertNotifier` |
+| `Vision/*` | `DetectionCategories` (category registry), `AiSettings` (models and options), `YoloOnnxDetector` (ONNX Runtime), `AiDetectionManager` (multi-model background loop, per-category alert episodes), `DetectionAlertNotifier` |
 | `Audio/*`, `Voice/*` | `WaveInCapture` (winmm), `MicrophoneManager`, `VoiceCommandEngine` (System.Speech), `VoiceTakeoffWorkflow` |
 | `Views/*` | The AeroAid screens (registered with Mission Planner's `MainSwitcher`) |
 
@@ -101,8 +104,8 @@ Restore everything with `git checkout original-baseline`; review the changes wit
 |---|---|---|
 | .NET Framework 4.7.2 runtime | Application | Part of Windows 10/11 |
 | GStreamer 1.x (x64) | Live video | Offered in-app ("Live video requires GStreamer…"). Downloads Mission Planner's package (~120 MB) to `C:\ProgramData\Mission Planner\gstreamer` |
-| `Microsoft.ML.OnnxRuntime` 1.20.1 (NuGet) | Fire/smoke inference | Restored at build time; `onnxruntime.dll` ships next to the exe |
-| A trained YOLO fire/smoke ONNX model | Fire detection | **You must provide it** (see §8) |
+| `Microsoft.ML.OnnxRuntime` 1.20.1 (NuGet) | AI detection inference | Restored at build time; `onnxruntime.dll` ships next to the exe |
+| Trained YOLO ONNX model(s) per category | AI detection | **You must provide them** (see §8) |
 | Windows speech recogniser (en-US) | Voice commands | Installed with Windows (Settings › Time & language › Speech) |
 | Microsoft Visual C++ 2015–2022 x64 redistributable | ONNX Runtime | Usually already installed |
 
@@ -141,23 +144,43 @@ camera supports instead of assuming it:
   audio back-channel, which is unconfirmed for this model.
 - **Security:** Don't share the safety code or put it in screenshots or source files. AeroAid never stores it in plain text.
 
-## 8. Fire detection model setup
+## 8. AI detection model setup
 
-AeroAid does **not** use colour heuristics. Without a trained model it shows "No model" and detects nothing.
+AeroAid does **not** use colour heuristics or simulated results. A category only reports detections, and only shows
+as operational, when a loaded model covers it. Otherwise it shows "no model" and detects nothing.
 
-1. Get or train a YOLO model for the classes **fire** and **smoke**. A common route is Ultralytics YOLOv8/YOLO11
-   trained on a public fire/smoke dataset (for example D-Fire). Check that the dataset and weights licences allow your use.
-2. Export to ONNX: `yolo export model=best.pt format=onnx imgsz=640 opset=12`.
-3. Copy it to `Documents\Mission Planner\AeroAid\models\fire_smoke.onnx`, or choose it with **Fire Detection › Load model…**.
-4. Class names come from the model metadata (Ultralytics exports include it) or from a `labels.txt` next to the model,
-   one name per line. Names containing *fire*/*flame* count as fire; *smoke* counts as smoke.
-5. Supported output layouts: YOLOv8/v11 `[1, 4+nc, N]`, YOLOv5/v7 `[1, N, 5+nc]`, and end-to-end exports `[1, ≤300, 6]`.
+| Category | Id | Matched class-name keywords |
+|---|---|---|
+| Fire | `fire` | fire, flame, blaze, wildfire |
+| Smoke | `smoke` | smoke |
+| Injured person | `injured_person` | injured, casualty, victim, wounded, person_down, fallen_person, lying_person |
+| Flood | `flood` | flood, inundat…, standing_water, submerged |
+| Damaged building | `damaged_building` | damaged, collapse…, rubble, debris, destroyed, building_damage |
+| Other emergency | `other_emergency` | emergency, accident, crash, distress, hazard, sos |
+
+Classes matching no category (for example `car` or `person`) are ignored.
+
+1. Get or train YOLO models for the categories you need. A common route is Ultralytics YOLOv8/YOLO11 trained on public
+   datasets (fire/smoke: D-Fire; flood and building damage: aerial disaster datasets such as FloodNet or xBD; injured
+   persons: dedicated casualty or "person lying" data). Check that dataset and weights licences allow your use.
+2. Export each model to ONNX: `yolo export model=best.pt format=onnx imgsz=640 opset=12`.
+3. Add them in **Settings › AI detection › Add model…**. The default fire model location
+   `Documents\Mission Planner\AeroAid\models\fire_smoke.onnx` is still used, and settings from the earlier
+   fire-only version are migrated. Each model can be enabled or disabled, and all enabled models run on every frame.
+4. Class names come from `<model>.labels.txt` or `labels.txt` (one class per line), or from the model metadata.
+   **Explicit mapping:** write `class_name=category_id`, for example `person_lying=injured_person` or
+   `water=flood`.
+5. **New categories without code changes:** create `categories.json` in the models folder, for example
+   `[{"id":"vehicle_accident","name":"Vehicle accident","color":"#FF8800","keywords":["crash","accident"]}]`.
+   It gets its own filter chip, status row, alert and history entries.
+6. Supported output layouts: YOLOv8/v11 `[1, 4+nc, N]`, YOLOv5/v7 `[1, N, 5+nc]`, and end-to-end exports `[1, ≤300, 6]`.
    The input must be `[1,3,H,W]`.
 
-Tuning (Settings › Fire detection): confidence threshold, analysis rate (fps), the number of consecutive frames
-needed before alerting, alert clear time (one alert per continuous event), screenshots, and sound. Alerts, screenshots
-and `detections.csv` are saved in `Documents\Mission Planner\AeroAid\detections\`.
-
+Tuning (Settings › AI detection): global confidence threshold, analysis rate (CPU load grows with each model),
+confirm frames, alert clear time (one alert per continuous event per category), captured frames and sound.
+The filter chips on the AI Detection page switch categories on or off; a disabled category is neither drawn nor
+alerted. Alerts, captured frames and `detections.csv` (category, confidence, time, duration, camera source, model,
+classes, screenshot) are saved in `Documents\Mission Planner\AeroAid\detections\`.
 ## 9. Voice recognition setup
 
 1. Make sure an English speech recogniser is installed (Windows Settings › Time & language › Speech). The Voice
@@ -199,7 +222,7 @@ auto-connects to MAVLink on UDP 14550. The Telemetry screen shows heartbeat age,
 
 All keys can be changed on **Controls & Keyboard Shortcuts**, which also has Restore defaults. F2–F5, F12, Tab,
 Enter and Esc are reserved. Keys only work while the AeroAid window is focused, on Dashboard, Flight Control, Live
-Camera, Camera Control and Fire Detection, and never while typing in a text field.
+Camera, Camera Control and AI Detection, and never while typing in a text field.
 
 ## 12. Safety precautions
 
@@ -227,16 +250,16 @@ Camera, Camera Control and Fire Detection, and never while typing in a text fiel
     modes, arm/disarm, takeoff/land/RTL, the safety gating, and the voice pre-flight checks.
   - **Tested against a local mock camera:** the RTSP probe, ONVIF and PTZ protocol code.
   - **Tested with a GStreamer test pattern:** the live-video path.
-  - **Tested with a synthetic test-fixture ONNX model:** the fire-detection pipeline. This checks decoding and the
+  - **Tested with a synthetic test-fixture ONNX model:** the AI-detection pipeline (two models; fire, smoke, injured person, flood, and ignored classes). This checks decoding and the
     alert flow, not detection quality.
   - **Tested with synthesised speech:** voice recognition.
-  - **Nothing has been tested on real hardware:** not with a real drone, not with the IMOU K2EP, not with a real fire model.
+  - **Nothing has been tested on real hardware:** not with a real drone, not with the IMOU K2EP, not with real detection models.
 - The voice workflow's dialog sequence wasn't triggered by live speech in testing. The test laptop's microphone
   echo-cancellation suppressed speaker playback, giving low confidence, which was correctly rejected. Its components
   were tested individually.
 - Button and keyboard movement supports **ArduCopter only**. Planes and rovers keep all stock Mission Planner functions.
 - IMOU PTZ and two-way audio depend on the camera's ONVIF support (see §7).
-- Fire detection needs a model you supply (§8) and runs on the CPU. Analysis rate trades accuracy against CPU load.
+- AI detection needs models you supply (§8) and runs on the CPU. Injured person, flood, damaged building and other-emergency detection are **architecture-ready but not operational** until such models are added and validated. Analysis rate trades accuracy against CPU load.
 - GStreamer's very first start can take up to a minute while it builds its plugin cache.
 - Speech recognition is English-only (Windows recogniser) and uses a fixed command grammar.
 - The stock Mission Planner screens keep their own layouts; they adopt the Mustard/Black colours through the theme.

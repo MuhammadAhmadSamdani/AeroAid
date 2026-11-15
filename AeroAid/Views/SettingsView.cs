@@ -20,7 +20,7 @@ namespace MissionPlanner.AeroAid.Views
         private readonly FlowLayoutPanel nav;
         private readonly Panel sections;
 
-        public SettingsView() : base("Settings", "Appearance, flight limits, camera, voice and fire detection preferences")
+        public SettingsView() : base("Settings", "Appearance, flight limits, camera, AI detection and voice preferences")
         {
             var p = BrandingManager.Palette;
             var save = AeroDraw.Button("Save settings", AeroIcons.Save, AeroButtonStyle.Primary, 160);
@@ -41,7 +41,7 @@ namespace MissionPlanner.AeroAid.Views
             cards.Add(("Appearance", AeroIcons.Settings, AppearanceSection()));
             cards.Add(("Flight controls", AeroIcons.FlightControl, FlightSection()));
             cards.Add(("Camera", AeroIcons.Camera, CameraSection()));
-            cards.Add(("Fire detection", AeroIcons.Fire, FireSection()));
+            cards.Add(("AI detection", AeroIcons.AiDetection, AiSection()));
             cards.Add(("Voice", AeroIcons.Mic, VoiceSection()));
 
             foreach (var c in Enumerable.Reverse(cards))
@@ -130,7 +130,7 @@ namespace MissionPlanner.AeroAid.Views
             {
                 (AeroShell.ScreenDashboard, "Dashboard"), (AeroShell.ScreenFlightControl, "Flight Control"),
                 (AeroShell.ScreenTelemetry, "Telemetry"), (AeroShell.ScreenLiveCamera, "Live Camera"),
-                (AeroShell.ScreenFireDetection, "Fire Detection"), ("FlightData", "Flight Data (HUD)"),
+                (AeroShell.ScreenAiDetection, "AI Detection"), ("FlightData", "Flight Data (HUD)"),
                 ("FlightPlanner", "Mission Planner")
             };
             foreach (var s in startScreens)

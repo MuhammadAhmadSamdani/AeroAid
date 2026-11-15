@@ -41,12 +41,12 @@ namespace MissionPlanner.AeroAid.Input
         public static readonly HashSet<string> FlightScreens = new HashSet<string>
         {
             AeroShell.ScreenFlightControl, AeroShell.ScreenDashboard, AeroShell.ScreenLiveCamera,
-            AeroShell.ScreenCameraControl, AeroShell.ScreenFireDetection
+            AeroShell.ScreenCameraControl, AeroShell.ScreenAiDetection
         };
 
         public static readonly HashSet<string> CameraScreens = new HashSet<string>
         {
-            AeroShell.ScreenLiveCamera, AeroShell.ScreenCameraControl, AeroShell.ScreenFireDetection,
+            AeroShell.ScreenLiveCamera, AeroShell.ScreenCameraControl, AeroShell.ScreenAiDetection,
             AeroShell.ScreenFlightControl, AeroShell.ScreenDashboard
         };
 
@@ -73,7 +73,7 @@ namespace MissionPlanner.AeroAid.Input
             flightKeys = AeroSettings.KeyboardFlightEnabled && FlightScreens.Contains(s);
             cameraKeys = CameraScreens.Contains(s);
             if (!flightKeys && !cameraKeys)
-                return "Inactive on this screen. Keys work on Dashboard, Flight Control, Live Camera, Camera Control and Fire Detection.";
+                return "Inactive on this screen. Keys work on Dashboard, Flight Control, Live Camera, Camera Control and AI Detection.";
             return !AeroSettings.KeyboardFlightEnabled ? "Camera keys active; drone keys disabled in Settings › Flight controls." : "Active.";
         }
 

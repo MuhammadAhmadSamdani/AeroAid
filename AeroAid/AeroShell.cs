@@ -25,7 +25,7 @@ namespace MissionPlanner.AeroAid
         public const string ScreenDashboard = "AeroDashboard";
         public const string ScreenFlightControl = "AeroFlightControl";
         public const string ScreenLiveCamera = "AeroLiveCamera";
-        public const string ScreenFireDetection = "AeroFireDetection";
+        public const string ScreenAiDetection = "AeroAiDetection";
         public const string ScreenTelemetry = "AeroTelemetry";
         public const string ScreenCameraControl = "AeroCameraControl";
         public const string ScreenSettings = "AeroSettings";
@@ -96,9 +96,9 @@ namespace MissionPlanner.AeroAid
                     Input.ShortcutMap.KeyText(Input.ShortcutMap.KeyFor(Input.ShortcutAction.Stop)));
                 mainForm.Deactivate += (s, e) => OnMainFormDeactivated();
 
-                // Fire detection runs in the background (waits for video; inactive without a model)
-                Vision.FireAlertNotifier.Install(mainForm);
-                Vision.FireDetectionManager.Instance.ApplySettings();
+                // AI detection runs in the background (waits for video; inactive without a model)
+                Vision.DetectionAlertNotifier.Install(mainForm);
+                Vision.AiDetectionManager.Instance.ApplySettings();
                 // Voice: a recognised command only STARTS the confirmation workflow (UI thread)
                 Voice.VoiceCommandEngine.Instance.CommandRecognized += (cmd, text, conf) =>
                     AeroDraw.SafeInvoke(mainForm, async () => await Voice.VoiceTakeoffWorkflow.RunAsync(text, conf));
@@ -107,7 +107,7 @@ namespace MissionPlanner.AeroAid
                 {
                     Voice.VoiceCommandEngine.Instance.StopListening();
                     Audio.MicrophoneManager.Instance.TurnOff();
-                    Vision.FireDetectionManager.Instance.Stop();
+                    Vision.AiDetectionManager.Instance.Stop();
                     Camera.VideoStreamManager.Instance.Stop();
                 };
 
@@ -160,6 +160,7 @@ namespace MissionPlanner.AeroAid
             try
             {
                 var target = AeroSettings.StartScreen;
+                if (target == "AeroFireDetection") target = ScreenAiDetection; // renamed page
                 if (!view.screens.Exists(s => s.Name == target))
                     target = ScreenDashboard;
                 main.AeroNavigate(target);
@@ -209,7 +210,7 @@ namespace MissionPlanner.AeroAid
             view.AddScreen(new MainSwitcher.Screen(ScreenTelemetry, typeof(TelemetryView), true));
             view.AddScreen(new MainSwitcher.Screen(ScreenLiveCamera, typeof(LiveCameraView), true));
             view.AddScreen(new MainSwitcher.Screen(ScreenCameraControl, typeof(CameraControlView), true));
-            view.AddScreen(new MainSwitcher.Screen(ScreenFireDetection, typeof(FireDetectionView), true));
+            view.AddScreen(new MainSwitcher.Screen(ScreenAiDetection, typeof(AiDetectionView), true));
             view.AddScreen(new MainSwitcher.Screen(ScreenVoice, typeof(VoiceView), true));
             view.AddScreen(new MainSwitcher.Screen(ScreenSettings, typeof(SettingsView), false));
             view.AddScreen(new MainSwitcher.Screen(ScreenAbout, typeof(AboutView), false));
@@ -222,8 +223,8 @@ namespace MissionPlanner.AeroAid
             bar.AddItem(ScreenFlightControl, "Flight Control", AeroIcons.FlightControl, () => view.ShowScreen(ScreenFlightControl));
             bar.AddItem("FlightPlanner", "Mission Planner", AeroIcons.Mission, () => main.AeroNavigate("FlightPlanner"));
             bar.AddItem(ScreenLiveCamera, "Live Camera", AeroIcons.Camera, () => view.ShowScreen(ScreenLiveCamera));
-            bar.AddItem(ScreenFireDetection, "Fire Detection", AeroIcons.Fire, () => view.ShowScreen(ScreenFireDetection),
-                () => Vision.FireDetectionManager.Instance.AlertActive);
+            bar.AddItem(ScreenAiDetection, "AI Detection", AeroIcons.AiDetection, () => view.ShowScreen(ScreenAiDetection),
+                () => Vision.AiDetectionManager.Instance.UnacknowledgedAlert);
             bar.AddItem(ScreenTelemetry, "Telemetry", AeroIcons.Telemetry, () => view.ShowScreen(ScreenTelemetry));
             bar.AddItem(ScreenCameraControl, "Camera Control", AeroIcons.CameraControl, () => view.ShowScreen(ScreenCameraControl));
             bar.AddItem(ScreenVoice, "Voice & Microphone", AeroIcons.Mic, () => view.ShowScreen(ScreenVoice));
