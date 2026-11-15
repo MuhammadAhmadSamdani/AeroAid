@@ -152,6 +152,20 @@ namespace MissionPlanner.AeroAid
             }
         }
 
+        /// <summary>Hides the stock view buttons (Data/Plan/Setup/Config/Sim/Help) while the sidebar is in use.</summary>
+        public static void HideStockViewButtons(MainV2 mainForm)
+        {
+            if (sidebar == null || mainForm == null)
+                return;
+            foreach (var item in new ToolStripItem[]
+                     {
+                         mainForm.MenuFlightData, mainForm.MenuFlightPlanner, mainForm.MenuInitConfig,
+                         mainForm.MenuConfigTune, mainForm.MenuSimulation, mainForm.MenuHelp
+                     })
+                if (item != null && item.Visible)
+                    item.Visible = false;
+        }
+
         /// <summary>Called once the stock start-up screen has been shown: open the AeroAid dashboard.</summary>
         public static void ShowStartScreen(MainSwitcher view)
         {

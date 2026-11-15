@@ -182,6 +182,18 @@ namespace MissionPlanner.AeroAid.UI
             }
         }
 
+        /// <summary>
+        /// Background colour actually visible behind <paramref name="c"/>: the first opaque BackColor up the
+        /// parent chain (Transparent panels would otherwise leave stale pixels behind custom-painted controls).
+        /// </summary>
+        public static Color OpaqueBackColor(Control c)
+        {
+            for (var p = c?.Parent; p != null; p = p.Parent)
+                if (p.BackColor.A == 255)
+                    return p.BackColor;
+            return BrandingManager.Palette.Background;
+        }
+
         public static void SafeInvoke(Control c, Action a)
         {
             if (c == null || c.IsDisposed || !c.IsHandleCreated)

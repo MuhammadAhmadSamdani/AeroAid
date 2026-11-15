@@ -598,6 +598,10 @@ namespace MissionPlanner
         {
             MenuSimulation.Visible = DisplayConfiguration.displaySimulation;
             MenuHelp.Visible = DisplayConfiguration.displayHelp;
+#if !LIB
+            // the AeroAid sidebar replaces the stock view buttons; keep them hidden after layout refreshes
+            MissionPlanner.AeroAid.AeroShell.HideStockViewButtons(this);
+#endif
             MissionPlanner.Controls.BackstageView.BackstageView.Advanced = DisplayConfiguration.isAdvancedMode;
 
             // force autohide on

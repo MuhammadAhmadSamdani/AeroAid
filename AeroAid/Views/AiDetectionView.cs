@@ -495,7 +495,7 @@ namespace MissionPlanner.AeroAid.Views
                 var p = BrandingManager.Palette;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-                g.Clear(Parent?.BackColor ?? p.Surface);
+                g.Clear(AeroDraw.OpaqueBackColor(this));
                 var c = enabled ? Category.Color : Color.FromArgb(0x55, 0x55, 0x55);
                 using (var path = AeroDraw.RoundedRect(new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f), 8))
                 {

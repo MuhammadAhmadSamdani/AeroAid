@@ -1,7 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
-    <ApplicationIcon>mpdesktop.ico</ApplicationIcon>
+    <!-- AeroAid: exe icon generated from the central logo (Assets\Branding\logo.png) by the AeroAidAppIcon target -->
+    <ApplicationIcon>Assets\Branding\app.ico</ApplicationIcon>
     <OutputType>Exe</OutputType>
     <StartupObject>MissionPlanner.Program</StartupObject>
     <Authors>Michael Oborne</Authors>
@@ -9,7 +10,7 @@
     <Company>Michael Oborne</Company>
     <Product>Mission Planner</Product>
     <Description>Mission Planner ground control station for ardupilot</Description>
-    <Copyright>Copyright © Michael Oborne 2010-2024</Copyright>
+    <Copyright>Copyright � Michael Oborne 2010-2024</Copyright>
     <ApplicationManifest>Properties\app.manifest</ApplicationManifest>
     <IsWebBootstrapper>false</IsWebBootstrapper>
     <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
@@ -722,6 +723,10 @@
     <None Update="HighContrast.mpsystheme">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- app.ico/make-icon.ps1 are build inputs, not runtime files -->
+    <None Update="Assets\Branding\app.ico;Assets\Branding\make-icon.ps1">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </None>
     <!-- AeroAid: theme, central branding assets (replace Assets\Branding\logo.png to rebrand) and licence text -->
     <None Update="AeroAid.mpsystheme">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -1209,4 +1214,10 @@
   <ItemGroup>
     <EmbeddedResource Include="Plugins\example23-switch.resx" />
   </ItemGroup>
+  <!-- AeroAid: regenerate the Windows exe icon from the central logo whenever logo.png changes -->
+  <Target Name="AeroAidAppIcon" BeforeTargets="CoreCompile" Condition="'$(OS)' == 'Windows_NT'"
+          Inputs="$(MSBuildProjectDirectory)\Assets\Branding\logo.png;$(MSBuildProjectDirectory)\Assets\Branding\make-icon.ps1"
+          Outputs="$(MSBuildProjectDirectory)\Assets\Branding\app.ico">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\Assets\Branding\make-icon.ps1&quot;" />
+  </Target>
 </Project>

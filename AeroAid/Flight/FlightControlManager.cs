@@ -237,53 +237,62 @@ namespace MissionPlanner.AeroAid.Flight
             if (!t.Connected || !t.IsCopter || !string.Equals(t.Mode, "Guided", StringComparison.OrdinalIgnoreCase))
                 return;
 
-            var h = AeroSettings.MaxHorizontalSpeed;
-            var v = AeroSettings.MaxVerticalSpeed;
-            var yawRateDeg = AeroSettings.MaxYawRate;
+            var msg = BuildVelocityCommand(t, dirs, AeroSettings.MaxHorizontalSpeed, AeroSettings.MaxVerticalSpeed,
+                AeroSettings.MaxYawRate, AeroSettings.MaxAltitude, AeroSettings.MinAltitude, out var limitNote);
+            if (limitNote != null)
+                Report(limitNote, StatusLevel.Warning);
+            Send(t, msg);
+        }
 
+        /// <summary>
+        /// Builds the SET_POSITION_TARGET_LOCAL_NED velocity command for the held directions (pure function).
+        /// Body frame (MAV_FRAME_BODY_OFFSET_NED): +vx forward, +vy right, +vz DOWN, +yaw_rate clockwise (rad/s).
+        /// Combined horizontal speed is limited to <paramref name="maxH"/>; climbing stops at
+        /// <paramref name="maxAlt"/> and descending at <paramref name="minAlt"/> (relative altitude).
+        /// </summary>
+        public static MAVLink.mavlink_set_position_target_local_ned_t BuildVelocityCommand(TelemetrySnapshot t,
+            IEnumerable<MoveDirection> dirs, double maxH, double maxV, double maxYawDeg, double maxAlt, double minAlt,
+            out string limitNote)
+        {
+            limitNote = null;
             double vx = 0, vy = 0, vz = 0, yawRate = 0;
-            foreach (var d in dirs)
+            foreach (var d in dirs ?? Enumerable.Empty<MoveDirection>())
             {
                 switch (d)
                 {
-                    case MoveDirection.Forward: vx += h; break;
-                    case MoveDirection.Backward: vx -= h; break;
-                    case MoveDirection.Right: vy += h; break;
-                    case MoveDirection.Left: vy -= h; break;
-                    case MoveDirection.Up: vz -= v; break; // NED: negative z is up
-                    case MoveDirection.Down: vz += v; break;
-                    case MoveDirection.YawRight: yawRate += yawRateDeg; break;
-                    case MoveDirection.YawLeft: yawRate -= yawRateDeg; break;
+                    case MoveDirection.Forward: vx += maxH; break;
+                    case MoveDirection.Backward: vx -= maxH; break;
+                    case MoveDirection.Right: vy += maxH; break;
+                    case MoveDirection.Left: vy -= maxH; break;
+                    case MoveDirection.Up: vz -= maxV; break; // NED: negative z is up
+                    case MoveDirection.Down: vz += maxV; break;
+                    case MoveDirection.YawRight: yawRate += maxYawDeg; break;
+                    case MoveDirection.YawLeft: yawRate -= maxYawDeg; break;
                 }
             }
 
             // limit combined horizontal speed (e.g. forward + right) to the configured maximum
             var hs = Math.Sqrt(vx * vx + vy * vy);
-            if (hs > h && hs > 0)
+            if (hs > maxH && hs > 0)
             {
-                vx *= h / hs;
-                vy *= h / hs;
+                vx *= maxH / hs;
+                vy *= maxH / hs;
             }
 
             // altitude envelope
-            if (vz < 0 && t.AltRelative >= AeroSettings.MaxAltitude)
+            if (vz < 0 && t.AltRelative >= maxAlt)
             {
                 vz = 0;
-                Report($"Climb blocked: altitude limit {AeroSettings.MaxAltitude:0} m reached.", StatusLevel.Warning);
+                limitNote = $"Climb blocked: altitude limit {maxAlt:0} m reached.";
             }
 
-            if (vz > 0 && t.AltRelative <= AeroSettings.MinAltitude)
+            if (vz > 0 && t.AltRelative <= minAlt)
             {
                 vz = 0;
-                Report($"Descent blocked below {AeroSettings.MinAltitude:0.#} m - use LAND to land.", StatusLevel.Warning);
+                limitNote = $"Descent blocked below {minAlt:0.#} m - use LAND to land.";
             }
 
-            SendVelocity(t, vx, vy, vz, yawRate * Math.PI / 180.0);
-        }
-
-        private static void SendVelocity(TelemetrySnapshot t, double vx, double vy, double vz, double yawRateRad)
-        {
-            var msg = new MAVLink.mavlink_set_position_target_local_ned_t
+            return new MAVLink.mavlink_set_position_target_local_ned_t
             {
                 time_boot_ms = 0,
                 target_system = (byte)t.SysId,
@@ -293,8 +302,25 @@ namespace MissionPlanner.AeroAid.Flight
                 vx = (float)vx,
                 vy = (float)vy,
                 vz = (float)vz,
-                yaw_rate = (float)yawRateRad
+                yaw_rate = (float)(yawRate * Math.PI / 180.0)
             };
+        }
+
+        /// <summary>Velocity + yaw-rate type mask (position, acceleration and yaw angle ignored).</summary>
+        public const ushort VelocityTypeMask = TypeMaskVelocityYawRate;
+
+        private static void SendVelocity(TelemetrySnapshot t, double vx, double vy, double vz, double yawRateRad)
+        {
+            var msg = BuildVelocityCommand(t, new MoveDirection[0], 0, 0, 0, double.MaxValue, double.MinValue, out _);
+            msg.vx = (float)vx;
+            msg.vy = (float)vy;
+            msg.vz = (float)vz;
+            msg.yaw_rate = (float)yawRateRad;
+            Send(t, msg);
+        }
+
+        private static void Send(TelemetrySnapshot t, MAVLink.mavlink_set_position_target_local_ned_t msg)
+        {
             try
             {
                 MainV2.comPort.sendPacket(msg, t.SysId, t.CompId);
@@ -304,7 +330,6 @@ namespace MissionPlanner.AeroAid.Flight
                 log.Error("Failed to send velocity command", ex);
             }
         }
-
         // ------------------------------------------------------------------ modes
 
         /// <summary>Flight modes reported for the connected vehicle's firmware.</summary>

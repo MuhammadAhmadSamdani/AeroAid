@@ -35,7 +35,12 @@ namespace MissionPlanner.AeroAid.Views
             var add = AeroDraw.Button("Add model...", AeroIcons.Folder, AeroButtonStyle.Secondary, 150, 32);
             var remove = AeroDraw.Button("Remove", AeroIcons.Stop, AeroButtonStyle.Secondary, 120, 32);
             var openFolder = AeroDraw.Button("Models folder", AeroIcons.Folder, AeroButtonStyle.Ghost, 160, 32);
-            var modelButtons = new FlowLayoutPanel { AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(0) };
+            // fixed layout: an auto-sized FlowLayoutPanel inside the form grid overlapped these buttons
+            var modelButtons = new Panel { Size = new Size(620, 40), BackColor = Color.Transparent, Margin = new Padding(0, 6, 0, 4) };
+            add.Location = new Point(0, 0);
+            remove.Location = new Point(add.Right + 8, 0);
+            openFolder.Location = new Point(remove.Right + 8, 0);
+            add.Margin = remove.Margin = openFolder.Margin = new Padding(0);
             modelButtons.Controls.AddRange(new Control[] { add, remove, openFolder });
             var modelBox = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.Transparent, Margin = new Padding(0, 2, 0, 8) };
             modelBox.Controls.Add(models);

@@ -101,7 +101,7 @@ namespace MissionPlanner.AeroAid.UI
 
         protected override void OnPaintBackground(PaintEventArgs e)
         {
-            using (var b = new SolidBrush(Parent?.BackColor ?? BrandingManager.Palette.Surface))
+            using (var b = new SolidBrush(AeroDraw.OpaqueBackColor(this)))
                 e.Graphics.FillRectangle(b, ClientRectangle);
         }
 
@@ -187,7 +187,7 @@ namespace MissionPlanner.AeroAid.UI
 
         protected override void OnPaintBackground(PaintEventArgs e)
         {
-            using (var b = new SolidBrush(Parent?.BackColor ?? BrandingManager.Palette.Surface))
+            using (var b = new SolidBrush(AeroDraw.OpaqueBackColor(this)))
                 e.Graphics.FillRectangle(b, ClientRectangle);
         }
 

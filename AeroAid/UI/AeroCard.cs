@@ -54,7 +54,7 @@ namespace MissionPlanner.AeroAid.UI
 
         protected override void OnPaintBackground(PaintEventArgs e)
         {
-            var parent = Parent?.BackColor ?? BrandingManager.Palette.Background;
+            var parent = AeroDraw.OpaqueBackColor(this);
             using (var b = new SolidBrush(parent))
                 e.Graphics.FillRectangle(b, ClientRectangle);
         }

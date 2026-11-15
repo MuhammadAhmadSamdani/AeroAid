@@ -312,7 +312,7 @@ namespace MissionPlanner.AeroAid.UI
         protected override void OnPaintBackground(PaintEventArgs e)
         {
             // paint the parent's colour behind the rounded corners
-            var parentColor = Parent?.BackColor ?? BrandingManager.Palette.Background;
+            var parentColor = AeroDraw.OpaqueBackColor(this);
             if (BackColor.A == 255)
                 parentColor = BackColor;
             using (var b = new SolidBrush(parentColor))

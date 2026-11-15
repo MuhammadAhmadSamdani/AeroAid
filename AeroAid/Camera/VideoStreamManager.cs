@@ -119,7 +119,9 @@ namespace MissionPlanner.AeroAid.Camera
 
         public void Stop()
         {
-            wantRunning = false;
+            // frameLock makes "stop" atomic with respect to OnNewImage (no frame/state after Stop)
+            lock (frameLock)
+                wantRunning = false;
             var g = gst;
             Task.Run(() =>
             {
@@ -140,7 +142,8 @@ namespace MissionPlanner.AeroAid.Camera
             }
 
             Interlocked.Increment(ref frameId);
-            SetState(StreamState.Stopped, "Stream stopped.");
+            lock (frameLock)
+                SetState(StreamState.Stopped, "Stream stopped.");
         }
 
         /// <summary>Restarts the pipeline with the current settings (e.g. after a quality change).</summary>
@@ -174,6 +177,31 @@ namespace MissionPlanner.AeroAid.Camera
 
                         var pipeline = BuildPipeline(out var display);
                         DisplayUrl = display;
+
+                        // Fast pre-check (GStreamer itself can retry silently for a long time on a dead camera)
+                        if (pipeline != null && string.IsNullOrEmpty(CameraSettings.CustomPipeline))
+                        {
+                            var probe = RtspProbe.DescribeAsync(display, CameraSettings.Username, CameraSettings.Password,
+                                CancellationToken.None, 3000).GetAwaiter().GetResult();
+                            if (!wantRunning)
+                                return; // Stop() was pressed while probing - keep the Stopped state
+                            if (probe.Status == RtspProbeStatus.AuthFailed || probe.Status == RtspProbeStatus.StreamNotFound ||
+                                probe.Status == RtspProbeStatus.NotConfigured)
+                            {
+                                wantRunning = false; // retrying cannot fix these
+                                SetState(StreamState.Error, probe.Message);
+                                return;
+                            }
+
+                            if (probe.Status == RtspProbeStatus.Unreachable || probe.Status == RtspProbeStatus.Error)
+                            {
+                                failures++;
+                                var delay = Math.Min(30, 2 << Math.Min(4, failures - 1));
+                                nextAttemptUtc = DateTime.UtcNow.AddSeconds(delay);
+                                SetState(StreamState.Reconnecting, probe.Message + $" Retrying in {delay} s...");
+                                return;
+                            }
+                        }
                         if (pipeline == null)
                         {
                             wantRunning = false;
@@ -187,6 +215,8 @@ namespace MissionPlanner.AeroAid.Camera
                             gst.OnNewImage += OnNewImage;
                         }
 
+                        if (!wantRunning)
+                            return;
                         pipelineEnded = false;
                         startedUtc = DateTime.UtcNow;
                         lastFrameUtc = DateTime.MinValue;
@@ -240,11 +270,26 @@ namespace MissionPlanner.AeroAid.Camera
                     copy.UnlockBits(bd);
                 }
 
+                bool becamePlaying;
                 lock (frameLock)
                 {
+                    if (!wantRunning)
+                    {
+                        // Stop() happened while this frame was being copied - discard it
+                        copy.Dispose();
+                        return;
+                    }
+
                     latest?.Dispose();
                     latest = copy;
                     FrameSize = new Size(w, h);
+                    becamePlaying = State != StreamState.Playing;
+                    if (becamePlaying)
+                    {
+                        failures = 0;
+                        // inside the lock so a concurrent Stop() cannot be overwritten (handlers only BeginInvoke)
+                        SetState(StreamState.Playing, $"Live \u2022 {w}x{h}");
+                    }
                 }
 
                 lastFrameUtc = DateTime.UtcNow;
@@ -258,11 +303,8 @@ namespace MissionPlanner.AeroAid.Camera
                     fpsWindowStart = lastFrameUtc;
                 }
 
-                if (State != StreamState.Playing)
-                {
-                    failures = 0;
+                if (becamePlaying)
                     SetState(StreamState.Playing, $"Live • {w}x{h}");
-                }
 
                 FrameArrived?.Invoke();
             }
