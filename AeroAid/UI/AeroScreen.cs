@@ -44,7 +44,7 @@ namespace MissionPlanner.AeroAid.UI
             subtitleLabel.Location = new Point(24, 44);
             HeaderTools = new FlowLayoutPanel
             {
-                Dock = DockStyle.Right,
+                // positioned by LayoutHeader(): right-aligned next to the title, or on a second row when narrow
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 FlowDirection = FlowDirection.RightToLeft,
@@ -55,9 +55,47 @@ namespace MissionPlanner.AeroAid.UI
             Header.Controls.Add(HeaderTools);
             Header.Controls.Add(titleLabel);
             Header.Controls.Add(subtitleLabel);
+            Header.Layout += (s, e) => LayoutHeader();
 
             Controls.Add(Body);
             Controls.Add(Header);
+        }
+
+        private const int HeaderBaseHeight = 74;
+        private bool layingOutHeader;
+
+        /// <summary>
+        /// Keeps the toolbar from overlapping the title/subtitle on narrow windows: if it does not fit beside the
+        /// text it moves to a second row under the subtitle and the header grows to fit.
+        /// </summary>
+        private void LayoutHeader()
+        {
+            if (layingOutHeader)
+                return;
+            layingOutHeader = true;
+            try
+            {
+                var tools = HeaderTools.PreferredSize;
+                var right = Header.ClientSize.Width - Header.Padding.Right;
+                var textRight = Math.Max(titleLabel.Right, subtitleLabel.Right) + 16;
+                var hasTools = HeaderTools.Controls.Count > 0;
+                if (!hasTools || right - tools.Width >= textRight)
+                {
+                    HeaderTools.Location = new Point(Math.Max(0, right - tools.Width), Header.Padding.Top);
+                    if (Header.Height != HeaderBaseHeight) Header.Height = HeaderBaseHeight;
+                }
+                else
+                {
+                    var top = subtitleLabel.Bottom - 4;
+                    HeaderTools.Location = new Point(Math.Max(Header.Padding.Left, right - tools.Width), top);
+                    var h = top + tools.Height + Header.Padding.Bottom;
+                    if (Header.Height != h) Header.Height = h;
+                }
+            }
+            finally
+            {
+                layingOutHeader = false;
+            }
         }
 
         public string Subtitle
@@ -69,7 +107,7 @@ namespace MissionPlanner.AeroAid.UI
         public bool IsScreenActive { get; private set; }
 
         /// <summary>Scrollable panel that does not jump to whichever child receives focus.</summary>
-        private sealed class NoJumpPanel : Panel
+        protected sealed class NoJumpPanel : Panel
         {
             protected override Point ScrollToControl(Control activeControl) => DisplayRectangle.Location;
         }

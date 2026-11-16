@@ -84,6 +84,9 @@ namespace MissionPlanner.AeroAid
             {
                 RegisterScreens(view);
 
+                // below this the sidebar + page headers/cards no longer fit (verified by resize QA)
+                mainForm.MinimumSize = new Size(1024, 680);
+
                 // Safety: any loss of focus of the main window releases all held movement controls.
                 MainFormDeactivated += () => Flight.FlightControlManager.Instance.StopAll();
                 MainFormDeactivated += () => Camera.CameraPtzManager.Instance.StopAll();

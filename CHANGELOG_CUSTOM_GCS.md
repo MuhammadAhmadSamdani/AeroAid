@@ -3,6 +3,19 @@
 Branch `custom-gcs`, based on Mission Planner 1.3.83 (tag `original-baseline`). There is one commit per phase;
 `git log --oneline original-baseline..custom-gcs` lists them.
 
+## QA pass (2026-11-16)
+
+Full results are in `QA_TEST_REPORT.md`. Fixes made during QA:
+
+| File | Change |
+|---|---|
+| `ExtLibs/Utilities/Settings.cs` (stock) | A partially damaged `config.xml` is now backed up as `config.xml<time>.failed` before the next save can overwrite it (previously settings after the damage point were silently lost) |
+| `AeroAid/UI/AeroScreen.cs` | Page header toolbar wraps below the title on narrow windows instead of overlapping it |
+| `AeroAid/Views/SettingsView.cs` | Settings opens at the top (no focus-driven auto-scroll); section buttons scroll explicitly |
+| `AeroAid/AeroShell.cs` | Minimum main-window size 1024×680 |
+| `AeroAid/Camera/VideoStreamManager.cs`, `MainV2.cs`, `AeroAid/UI/*`, `MissionPlanner.csproj` | Camera start/stop/reconnect races, fast RTSP pre-check, stock top-bar buttons kept hidden, paint artifacts, exe icon from logo (earlier QA commit) |
+| `MissionPlannerTests/AeroAid/*` | 47 automated tests, including restart/missing/corrupt config and synthesised-speech voice injection |
+
 ## AI Detection page (2026-11-15)
 
 The Fire Detection page was transformed **in place** into **AI Detection**, a multi-category, multi-model monitoring

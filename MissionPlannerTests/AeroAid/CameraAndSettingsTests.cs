@@ -236,5 +236,88 @@ namespace MissionPlanner.AeroAid.Tests
             Settings.Instance["aeroaid.flight.max_h_speed"] = "2";
             Settings.Instance["aeroaid.camera.rtsp_port"] = "554";
         }
+
+        // ---------------------------------------------------------------- restart / damaged config file
+
+        /// <summary>Simulates an application restart: empties the in-memory store and reloads from disk.</summary>
+        private static void RestartSettings()
+        {
+            Settings.config.Clear();
+            typeof(Settings).GetField("_instance", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).SetValue(null, null);
+            var _ = Settings.Instance; // triggers Load()
+        }
+
+        [TestMethod]
+        public void SettingsSurviveRealRestartFromDisk()
+        {
+            AeroSettings.TakeoffAltitude = 8.5;
+            AeroSettings.SetSecret("test.restart", Pass);
+            AeroSettings.Save();
+            RestartSettings();
+            Assert.AreEqual(8.5, AeroSettings.TakeoffAltitude, 1e-9);
+            Assert.AreEqual(Pass, AeroSettings.GetSecret("test.restart"));
+            AeroSettings.SetSecret("test.restart", "");
+            AeroSettings.TakeoffAltitude = 5;
+            AeroSettings.Save();
+        }
+
+        [TestMethod]
+        public void MissingConfigFileFallsBackToDefaults()
+        {
+            AeroSettings.Save();
+            var backup = File.ReadAllText(TestEnv.ConfigFile);
+            try
+            {
+                File.Delete(TestEnv.ConfigFile);
+                RestartSettings();
+                Assert.AreEqual(5.0, AeroSettings.TakeoffAltitude, 1e-9);
+                Assert.AreEqual(2.0, AeroSettings.MaxHorizontalSpeed, 1e-9);
+                Assert.IsTrue(AeroSettings.KeyboardFlightEnabled);
+                Assert.AreEqual("", AeroSettings.GetSecret("camera.password"));
+                AeroSettings.Save(); // must recreate the file
+                Assert.IsTrue(File.Exists(TestEnv.ConfigFile));
+            }
+            finally
+            {
+                File.WriteAllText(TestEnv.ConfigFile, backup);
+                RestartSettings();
+            }
+        }
+
+        [TestMethod]
+        public void CorruptConfigFileDoesNotCrashAndIsBackedUp()
+        {
+            AeroSettings.Save();
+            var backup = File.ReadAllText(TestEnv.ConfigFile);
+            var dir = Path.GetDirectoryName(TestEnv.ConfigFile);
+            foreach (var f in Directory.GetFiles(dir, "*.failed")) File.Delete(f);
+            try
+            {
+                // valid entry, then truncated/garbled XML (e.g. power loss mid-write)
+                File.WriteAllText(TestEnv.ConfigFile,
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<Config>\n  <aeroaid.flight.takeoff_alt>9</aeroaid.flight.takeoff_alt>\n  <aeroaid.flight.max_h_speed>3<<<garbage \u0000\u0001");
+                RestartSettings(); // must not throw
+                Assert.AreEqual(9.0, AeroSettings.TakeoffAltitude, 1e-9, "entries before the damage are kept");
+                Assert.AreEqual(2.0, AeroSettings.MaxHorizontalSpeed, 1e-9, "damaged entry falls back to default");
+                Assert.IsTrue(Directory.GetFiles(dir, "*.failed").Length >= 1, "damaged file copied aside for recovery");
+
+                // the next save writes a well-formed file that loads cleanly
+                AeroSettings.Save();
+                new System.Xml.XmlDocument().Load(TestEnv.ConfigFile);
+                RestartSettings();
+                Assert.AreEqual(9.0, AeroSettings.TakeoffAltitude, 1e-9);
+
+                // completely non-XML content
+                File.WriteAllText(TestEnv.ConfigFile, "this is not xml at all");
+                RestartSettings();
+                Assert.AreEqual(5.0, AeroSettings.TakeoffAltitude, 1e-9);
+            }
+            finally
+            {
+                File.WriteAllText(TestEnv.ConfigFile, backup);
+                foreach (var f in Directory.GetFiles(dir, "*.failed")) File.Delete(f);
+                RestartSettings();
+            }
+        }
     }
 }

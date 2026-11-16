@@ -31,7 +31,8 @@ namespace MissionPlanner.AeroAid.Views
             HeaderTools.Controls.Add(revert);
 
             nav = new FlowLayoutPanel { Dock = DockStyle.Left, Width = 200, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = p.Background, Padding = new Padding(0, 6, 10, 0) };
-            sections = new Panel { Dock = DockStyle.Fill, BackColor = p.Background, AutoScroll = true };
+            // NoJumpPanel: focus moving to a field must not scroll the page (it used to open scrolled to AI detection)
+            sections = new NoJumpPanel { Dock = DockStyle.Fill, BackColor = p.Background, AutoScroll = true };
             Body.AutoScroll = false;
             Body.Controls.Add(sections);
             Body.Controls.Add(nav);
@@ -61,7 +62,8 @@ namespace MissionPlanner.AeroAid.Views
                 };
                 b.Click += (s, e) =>
                 {
-                    sections.ScrollControlIntoView(card);
+                    // explicit scroll (NoJumpPanel ignores ScrollControlIntoView); card.Top is relative to the scrolled view
+                    sections.AutoScrollPosition = new Point(0, card.Top - sections.AutoScrollPosition.Y);
                     foreach (var other in nav.Controls.OfType<AeroButton>())
                         other.IsActive = other == b;
                 };
@@ -79,7 +81,13 @@ namespace MissionPlanner.AeroAid.Views
             savers.Add(save);
         }
 
-        protected override void OnScreenActivated() => LoadAll();
+        protected override void OnScreenActivated()
+        {
+            LoadAll();
+            sections.AutoScrollPosition = Point.Empty;
+            foreach (var b in nav.Controls.OfType<AeroButton>())
+                b.IsActive = false;
+        }
 
         private void LoadAll()
         {

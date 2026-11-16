@@ -20,6 +20,7 @@
   <ItemGroup>
     <!-- AeroAid tests -->
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Speech" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Security" />
     <None Update="AeroAid\TestData\**\*">

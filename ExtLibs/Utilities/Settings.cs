@@ -468,6 +468,7 @@ namespace MissionPlanner.Utilities
             if (!File.Exists(GetConfigFullPath()))
                 return;
 
+            bool damaged = false;
             try
             {
                 using (XmlTextReader xmlreader = new XmlTextReader(GetConfigFullPath()))
@@ -489,13 +490,19 @@ namespace MissionPlanner.Utilities
                                         break;
                                 }
                             }
-                            // silent fail on bad entry
+                            // silent fail on bad entry - but remember it so the damaged file is preserved
                             catch (Exception)
                             {
+                                damaged = true;
                             }
                         }
                     }
                 }
+
+                // a parse error inside an entry stops the reader without throwing; keep a copy of the damaged
+                // file so the settings after the damage point are not silently lost on the next Save()
+                if (damaged)
+                    File.Copy(GetConfigFullPath(), GetConfigFullPath() + DateTime.Now.toUnixTime() + ".failed", true);
             }
             catch (Exception ex)
             {
