@@ -1,0 +1,8 @@
+is_global = true
+build_property.RootNamespace = SvgNet
+build_property.ProjectDir = C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\SvgNet\
+build_property.EnableComHosting = 
+build_property.EnableGeneratedComInterfaceComImportInterop = 
+build_property.CsWinRTUseWindowsUIXamlProjections = false
+build_property.EffectiveAnalysisLevelStyle = 
+build_property.EnableCodeStyleSeverity = 

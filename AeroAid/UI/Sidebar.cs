@@ -97,20 +97,26 @@ namespace MissionPlanner.AeroAid.UI
             var p = BrandingManager.Palette;
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-            var logo = BrandingManager.GetLogo(48);
-            var x = 18;
+            // the AEROAID wordmark (which already contains the name), centred, aspect ratio preserved
+            var logo = BrandingManager.GetLogo(brand.Width - 36, 46);
             if (logo != null)
             {
-                g.DrawImage(logo, x, 22, 48, 48);
-                x += 58;
+                var y = 14 + (46 - logo.Height) / 2;
+                g.DrawImage(logo, (brand.Width - logo.Width) / 2, y, logo.Width, logo.Height);
+                using (var f = AeroDraw.UiFont(8f))
+                using (var b = new SolidBrush(p.Muted))
+                using (var centre = new StringFormat { Alignment = StringAlignment.Center })
+                    g.DrawString(BrandingManager.Tagline, f, b, new RectangleF(6, 66, brand.Width - 12, 20), centre);
             }
-
-            using (var f = AeroDraw.UiFont(16f, FontStyle.Bold))
-            using (var b = new SolidBrush(p.Accent))
-                g.DrawString(BrandingManager.AppName, f, b, x, 24);
-            using (var f = AeroDraw.UiFont(8f))
-            using (var b = new SolidBrush(p.Muted))
-                g.DrawString(BrandingManager.Tagline, f, b, new RectangleF(x + 1, 52, Width - x - 6, 30));
+            else
+            {
+                using (var f = AeroDraw.UiFont(16f, FontStyle.Bold))
+                using (var b = new SolidBrush(p.Accent))
+                    g.DrawString(BrandingManager.AppName, f, b, 18, 24);
+                using (var f = AeroDraw.UiFont(8f))
+                using (var b = new SolidBrush(p.Muted))
+                    g.DrawString(BrandingManager.Tagline, f, b, new RectangleF(19, 52, Width - 25, 30));
+            }
             using (var pen = new Pen(Color.FromArgb(0x26, 0x26, 0x26)))
                 g.DrawLine(pen, 14, brand.Height - 1, Width - 14, brand.Height - 1);
         }

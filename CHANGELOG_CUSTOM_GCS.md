@@ -3,6 +3,54 @@
 Branch `custom-gcs`, based on Mission Planner 1.3.83 (tag `original-baseline`). There is one commit per phase;
 `git log --oneline original-baseline..custom-gcs` lists them.
 
+## AEROAID logo replaces the ArduPilot logo (2026-11-18)
+
+Details: `AEROAID_BRANDING_REPORT.md`. Single logo source: `Assets/Branding/aeroaid.png`.
+
+| File | Change |
+|---|---|
+| `MainV2.cs` | Main-menu logo button: AEROAID wordmark instead of the ArduPilot logo (31 px high, aspect preserved) |
+| `AeroAid/Branding/BrandingManager.cs` | Default logo `aeroaid.png`; transparent margin trimmed in memory; `GetLogo(maxW, maxH)` fit-within (never stretched or cropped); icon tile; wordmark-centred splash; `Reload()` |
+| `AeroAid/UI/Sidebar.cs`, `AeroAid/Views/AboutView.cs` | Wordmark instead of square logo + name text |
+| `Assets/Branding/branding.json`, `make-icon.ps1`, `app.ico`, `MissionPlanner.csproj` | Point at `aeroaid.png`; exe icon regenerated from it |
+| `Assets/Branding/logo.png` | Removed (old placeholder); `aeroaid.png` is the only logo file |
+| `Program.cs`, `README_CUSTOM_GCS.md` | Comments / documentation |
+| `MissionPlannerTests/AeroAid/BrandingLogoTests.cs` (new) | Logo source, aspect ratio, transparency, icon, splash |
+
+## Voice recognition rebuild (2026-11-17, second pass)
+
+Root cause, engine comparison and results: `VOICE_RECOGNITION_ENGINE_COMPARISON.md` and `VOICE_CONTROL_TEST_REPORT.md`.
+
+| File | Change |
+|---|---|
+| `MissionPlanner.csproj`, `MissionPlannerTests.csproj` | NuGet `Vosk` 0.3.38 (offline Kaldi recogniser; win-x64 native DLLs copied next to the exe) |
+| `AeroAid/Voice/SpeechRecognizers.cs` (new) | `VoskCommandRecognizer` (command vocabulary, per-word confidence and timing), `SapiCommandRecognizer` (Windows speech fallback, closed grammar, **no dictation**), `VoskModelStore` (model lookup, SHA-256-verified download) |
+| `AeroAid/Voice/VoiceGrammar.cs` (new) | Recogniser vocabulary: command phrases, context words, decoy words, `[unk]` |
+| `AeroAid/Voice/VoiceCommandParser.cs` | Phrase-grammar classifier (`LEAD* COMMAND TAIL*`) for ARM / DISARM / TAKEOFF / **STOP / HOLD / RTL / LAND**; "my arm hurts" and "hold on" are unclear, not commands; one spoken form per command word |
+| `AeroAid/Audio/VoiceActivityDetector.cs` (new) | 90 Hz high-pass, adaptive-noise-floor voice-activity detection with pre-roll, level / clipping / SNR, microphone-test analysis |
+| `AeroAid/Voice/VoiceCommandEngine.cs` | New pipeline (VAD → recogniser → classifier → confidence of the command words), background-speech suppression, Test Mode, engine fallback, model preload |
+| `AeroAid/Voice/VoiceTestSession.cs` (new) | Test Mode scoring per command and markdown/CSV accuracy reports |
+| `AeroAid/Voice/VoiceCommandController.cs`, `VoiceSafety.cs` | STOP / HOLD / RTL / LAND (verified from the heartbeat mode), confirmation policy, Test Mode guard, STOP/HOLD/RTL/LAND may interrupt a takeoff climb check |
+| `AeroAid/Audio/MicrophoneManager.cs` | dBFS level, peak, clipping and receiving-audio indicators; 4 s test recording |
+| `AeroAid/Views/VoiceView.cs`, `SettingsView.Voice.cs` | Engine / listening / receiving-audio tiles, Start / Stop listening, Test microphone + playback, Test Mode, per-command test buttons, accuracy table and report, model download; new settings |
+| `MissionPlannerTests/AeroAid/Voice*.cs` | Classifier, controller, engine, live-pipeline (Vosk and fallback), corpus and acoustic loop-back tests |
+
+## Voice control fix (2026-11-17)
+
+Details and test results are in `VOICE_CONTROL_TEST_REPORT.md`.
+
+| File | Change |
+|---|---|
+| `AeroAid/Voice/VoiceCommandEngine.cs` | Speech-to-text instead of a whole-sentence, takeoff-only grammar: a keyword-anchored command grammar (with negations and filler words) runs alongside free dictation; partial results shown, final results processed once, confidence threshold, split-negation guard, continuous listening, microphone-loss handling |
+| `AeroAid/Voice/VoiceCommandParser.cs` (new) | Normalisation and whole-word keyword matching for ARM / DISARM / TAKEOFF (priority DISARM, TAKEOFF, ARM); negation, question, ambiguity and length rejection |
+| `AeroAid/Voice/VoiceSafety.cs` (new) | Per-command vehicle-state checks; DISARM refused while airborne (EXTENDED_SYS_STATE, altitude, climb rate) |
+| `AeroAid/Voice/VoiceCommandController.cs` (new, replaces `VoiceTakeoffWorkflow.cs`) | Validation, confirmation, re-validation, MAVLink command, verification from ACK and telemetry; per-command cool-down; at most once per utterance |
+| `AeroAid/Voice/VoiceLog.cs` (new) | `aeroaid_voice.log` audit log |
+| `AeroAid/Views/VoiceView.cs`, `SettingsView.Voice.cs` | Microphone, recognition, detected-command and execution-status cards; new settings |
+| `AeroAid/Flight/FlightControlManager.cs` | Failure messages now include the vehicle's refusal reason (it was read before the command was sent) |
+| `AeroAid/Telemetry/TelemetryManager.cs` | `LandedState` (MAV_LANDED_STATE) in the snapshot |
+| `MissionPlannerTests/AeroAid/Voice*.cs` | Keyword-matching, safety, controller, engine, live-pipeline speech, UI smoke and SITL tests |
+
 ## QA pass (2026-11-16)
 
 Full results are in `QA_TEST_REPORT.md`. Fixes made during QA:
@@ -77,7 +125,7 @@ Real injured-person, flood and damaged-building models have **not** been integra
 | `AeroAid/Vision/YoloOnnxDetector.cs` | ONNX Runtime YOLO inference (v5, v8/v11, end-to-end), letterbox, NMS |
 | `AeroAid/Vision/FireDetectionManager.cs`, `FireAlertNotifier.cs` | Background detection loop, alert episodes, history, screenshots, CSV log, overlay, toast and sound |
 | `AeroAid/Audio/WaveInCapture.cs`, `MicrophoneManager.cs` | winmm microphone capture, device selection, level, diagnostics |
-| `AeroAid/Voice/VoiceCommandEngine.cs`, `VoiceTakeoffWorkflow.cs` | System.Speech command recognition; checked and confirmed voice takeoff |
+| `AeroAid/Voice/VoiceCommandEngine.cs`, `VoiceTakeoffWorkflow.cs` | System.Speech command recognition; checked and confirmed voice takeoff (replaced 2026-11-17, see above) |
 | `AeroAid/Views/DashboardView.cs`, `VehicleMap.cs` | Dashboard and the branded vehicle map |
 | `AeroAid/Views/FlightControlView.cs`, `TelemetryView.cs` | Flight Control and Telemetry screens |
 | `AeroAid/Views/LiveCameraView.cs`, `CameraControlView.cs`, `FireDetectionView.cs` | Camera and fire screens |

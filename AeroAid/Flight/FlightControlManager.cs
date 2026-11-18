@@ -434,7 +434,7 @@ namespace MissionPlanner.AeroAid.Flight
 
                 return false;
             }, "Mode changed to " + mode.ToUpperInvariant(),
-                "Vehicle did not confirm mode " + mode.ToUpperInvariant() + ". " + LastVehicleMessage());
+                () => "Vehicle did not confirm mode " + mode.ToUpperInvariant() + ". " + LastVehicleMessage());
         }
 
         // ------------------------------------------------------------------ arming
@@ -455,7 +455,7 @@ namespace MissionPlanner.AeroAid.Flight
                 for (var i = 0; i < 30 && !MainV2.comPort.MAV.cs.armed; i++)
                     await Task.Delay(100).ConfigureAwait(false);
                 return ack && MainV2.comPort.MAV.cs.armed;
-            }, "Vehicle ARMED", "Arming refused by the vehicle. " + LastVehicleMessage());
+            }, "Vehicle ARMED", () => "Arming refused by the vehicle. " + LastVehicleMessage());
         }
 
         /// <summary>Disarms (never forced - ArduPilot refuses to disarm a flying copter).</summary>
@@ -475,7 +475,7 @@ namespace MissionPlanner.AeroAid.Flight
                 for (var i = 0; i < 30 && MainV2.comPort.MAV.cs.armed; i++)
                     await Task.Delay(100).ConfigureAwait(false);
                 return ack && !MainV2.comPort.MAV.cs.armed;
-            }, "Vehicle DISARMED", "Disarm refused by the vehicle (it will not disarm while flying - land first). " + LastVehicleMessage());
+            }, "Vehicle DISARMED", () => "Disarm refused by the vehicle (it will not disarm while flying - land first). " + LastVehicleMessage());
         }
 
         // ------------------------------------------------------------------ takeoff / land / rtl
@@ -520,7 +520,7 @@ namespace MissionPlanner.AeroAid.Flight
 
                 return await MainV2.comPort.doCommandAsync(t.SysId, t.CompId, MAVLink.MAV_CMD.TAKEOFF,
                     0, 0, 0, 0, 0, 0, alt).ConfigureAwait(false);
-            }, $"Takeoff to {altitude:0.#} m accepted", "Takeoff rejected by the vehicle. " + LastVehicleMessage());
+            }, $"Takeoff to {altitude:0.#} m accepted", () => "Takeoff rejected by the vehicle. " + LastVehicleMessage());
         }
 
         public Task<bool> LandAsync() => SetModeAsync("Land");
@@ -531,14 +531,14 @@ namespace MissionPlanner.AeroAid.Flight
 
         public bool CommandInFlight => Volatile.Read(ref commandInFlight) > 0;
 
-        private async Task<bool> RunCommand(string name, Func<Task<bool>> action, string okText, string failText)
+        private async Task<bool> RunCommand(string name, Func<Task<bool>> action, string okText, Func<string> failText)
         {
             Interlocked.Increment(ref commandInFlight);
             Report(name + "...", StatusLevel.Unavailable);
             try
             {
                 var ok = await Task.Run(action).ConfigureAwait(false);
-                Report(ok ? okText : failText, ok ? StatusLevel.Ok : StatusLevel.Critical);
+                Report(ok ? okText : failText(), ok ? StatusLevel.Ok : StatusLevel.Critical);
                 return ok;
             }
             catch (Exception ex)

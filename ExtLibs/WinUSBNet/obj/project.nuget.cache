@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "dgSpecHash": "dsVs8u95JRM=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\uroob\\Downloads\\AeroAid\\MissionPlanner-master\\MissionPlanner-master\\ExtLibs\\WinUSBNet\\Nefarius.Drivers.WinUSB.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\uroob\\.nuget\\packages\\microsoft.netcore.platforms\\1.1.0\\microsoft.netcore.platforms.1.1.0.nupkg.sha512",
+    "C:\\Users\\uroob\\.nuget\\packages\\microsoft.windows.cswin32\\0.3.269\\microsoft.windows.cswin32.0.3.269.nupkg.sha512",
+    "C:\\Users\\uroob\\.nuget\\packages\\microsoft.windows.sdk.win32docs\\0.1.42-alpha\\microsoft.windows.sdk.win32docs.0.1.42-alpha.nupkg.sha512",
+    "C:\\Users\\uroob\\.nuget\\packages\\microsoft.windows.sdk.win32metadata\\69.0.7-preview\\microsoft.windows.sdk.win32metadata.69.0.7-preview.nupkg.sha512",
+    "C:\\Users\\uroob\\.nuget\\packages\\microsoft.windows.wdk.win32metadata\\0.13.25-experimental\\microsoft.windows.wdk.win32metadata.0.13.25-experimental.nupkg.sha512",
+    "C:\\Users\\uroob\\.nuget\\packages\\minver\\7.0.0\\minver.7.0.0.nupkg.sha512",
+    "C:\\Users\\uroob\\.nuget\\packages\\netstandard.library\\2.0.3\\netstandard.library.2.0.3.nupkg.sha512",
+    "C:\\Users\\uroob\\.nuget\\packages\\system.buffers\\4.6.1\\system.buffers.4.6.1.nupkg.sha512",
+    "C:\\Users\\uroob\\.nuget\\packages\\system.memory\\4.6.3\\system.memory.4.6.3.nupkg.sha512",
+    "C:\\Users\\uroob\\.nuget\\packages\\system.numerics.vectors\\4.6.1\\system.numerics.vectors.4.6.1.nupkg.sha512",
+    "C:\\Users\\uroob\\.nuget\\packages\\system.runtime.compilerservices.unsafe\\6.1.2\\system.runtime.compilerservices.unsafe.6.1.2.nupkg.sha512"
+  ],
+  "logs": [
+    {
+      "code": "NU1603",
+      "level": "Warning",
+      "message": "Nefarius.Drivers.WinUSB depends on Microsoft.Windows.CsWin32 (>= 0.3.268) but Microsoft.Windows.CsWin32 0.3.268 was not found. Microsoft.Windows.CsWin32 0.3.269 was resolved instead.",
+      "projectPath": "C:\\Users\\uroob\\Downloads\\AeroAid\\MissionPlanner-master\\MissionPlanner-master\\ExtLibs\\WinUSBNet\\Nefarius.Drivers.WinUSB.csproj",
+      "warningLevel": 1,
+      "filePath": "C:\\Users\\uroob\\Downloads\\AeroAid\\MissionPlanner-master\\MissionPlanner-master\\ExtLibs\\WinUSBNet\\Nefarius.Drivers.WinUSB.csproj",
+      "libraryId": "Microsoft.Windows.CsWin32",
+      "targetGraphs": [
+        "netstandard2.0"
+      ]
+    }
+  ]
+}

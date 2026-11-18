@@ -1,0 +1,8 @@
+is_global = true
+build_property.RootNamespace = DirectShowLib
+build_property.ProjectDir = C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\DirectShowLib\
+build_property.EnableComHosting = 
+build_property.EnableGeneratedComInterfaceComImportInterop = 
+build_property.CsWinRTUseWindowsUIXamlProjections = false
+build_property.EffectiveAnalysisLevelStyle = 
+build_property.EnableCodeStyleSeverity = 

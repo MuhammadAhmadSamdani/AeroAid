@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
-    <!-- AeroAid: exe icon generated from the central logo (Assets\Branding\logo.png) by the AeroAidAppIcon target -->
+    <!-- AeroAid: exe icon generated from the central logo (Assets\Branding\aeroaid.png) by the AeroAidAppIcon target -->
     <ApplicationIcon>Assets\Branding\app.ico</ApplicationIcon>
     <OutputType>Exe</OutputType>
     <StartupObject>MissionPlanner.Program</StartupObject>
@@ -727,7 +727,7 @@
     <None Update="Assets\Branding\app.ico;Assets\Branding\make-icon.ps1">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
-    <!-- AeroAid: theme, central branding assets (replace Assets\Branding\logo.png to rebrand) and licence text -->
+    <!-- AeroAid: theme, central branding assets (replace Assets\Branding\aeroaid.png to rebrand) and licence text -->
     <None Update="AeroAid.mpsystheme">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -1094,6 +1094,10 @@
     <PackageReference Include="System.Management" Version="8.0.0" />
     <!-- AeroAid fire/smoke detection: YOLO (ONNX) inference on the CPU -->
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
+    <!-- AeroAid voice commands: offline Vosk/Kaldi recogniser (Apache-2.0). Its build targets copy the win-x64
+         native libvosk.dll (+ MinGW runtime DLLs) next to the exe. The English model is downloaded at runtime
+         from the Voice page into the Mission Planner data folder - see VOICE_RECOGNITION_ENGINE_COMPARISON.md. -->
+    <PackageReference Include="Vosk" Version="0.3.38" />
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="plugins\example-watchbutton.cs" />
@@ -1214,9 +1218,9 @@
   <ItemGroup>
     <EmbeddedResource Include="Plugins\example23-switch.resx" />
   </ItemGroup>
-  <!-- AeroAid: regenerate the Windows exe icon from the central logo whenever logo.png changes -->
+  <!-- AeroAid: regenerate the Windows exe icon from the central logo whenever aeroaid.png changes -->
   <Target Name="AeroAidAppIcon" BeforeTargets="CoreCompile" Condition="'$(OS)' == 'Windows_NT'"
-          Inputs="$(MSBuildProjectDirectory)\Assets\Branding\logo.png;$(MSBuildProjectDirectory)\Assets\Branding\make-icon.ps1"
+          Inputs="$(MSBuildProjectDirectory)\Assets\Branding\aeroaid.png;$(MSBuildProjectDirectory)\Assets\Branding\make-icon.ps1"
           Outputs="$(MSBuildProjectDirectory)\Assets\Branding\app.ico">
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\Assets\Branding\make-icon.ps1&quot;" />
   </Target>

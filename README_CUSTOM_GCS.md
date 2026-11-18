@@ -3,7 +3,8 @@
 AeroAid is a branded, extended build of **Mission Planner** (the ArduPilot ground control station).
 All stock Mission Planner functions are still available: MAVLink connections, mission planning, the HUD
 and map, parameters, setup/calibration, firmware and SITL. AeroAid adds a new interface on top, plus
-button and keyboard flight control, voice takeoff, IMOU/ONVIF camera integration and multi-category AI detection.
+button and keyboard flight control, offline voice commands (ARM / DISARM / TAKEOFF / STOP / HOLD / RTL / LAND),
+IMOU/ONVIF camera integration and multi-category AI detection.
 
 > AeroAid is a derivative of Mission Planner (GPLv3). See [COPYING.txt](COPYING.txt) and the About screen.
 
@@ -13,11 +14,11 @@ button and keyboard flight control, voice takeoff, IMOU/ONVIF camera integration
 
 | Area | What you get |
 |---|---|
-| Branding | One logo file (`Assets/Branding/logo.png`) and one config (`branding.json`) drive the name, version, colours, window/taskbar icon, splash, sidebar and About screen |
+| Branding | One logo file (`Assets/Branding/aeroaid.png`, the AEROAID wordmark) and one config (`branding.json`) drive the name, version, colours, window/taskbar icon, splash, sidebar and About screen |
 | Theme | Mustard/black palette (`AeroAid.mpsystheme`), rounded animated buttons, cards and status tiles |
 | Navigation | Left sidebar: Dashboard, Flight Control, Mission Planner, Live Camera, AI Detection, Telemetry, Camera Control, Voice & Microphone, plus the stock Mission Planner tools, Settings, Controls & Shortcuts, About |
 | Flight | Hold-to-move pad (MAVLink `SET_POSITION_TARGET_LOCAL_NED`), flight-mode selector built from the vehicle's mode list, Arm/Disarm, Take off, Land, RTL, Hold position |
-| Voice | Offline "take off" recognition → pre-flight checks → **mandatory ARM confirmation** → **TAKEOFF confirmation** |
+| Voice | Offline Vosk command recogniser (voice-activity detection, command vocabulary) → phrase classifier for **ARM / DISARM / TAKEOFF / STOP / HOLD / RTL / LAND** → vehicle-state checks → confirmation → MAVLink → result verified from ACK and telemetry. **Test Mode** (default) never sends anything |
 | Camera | RTSP live video (GStreamer), ONVIF capability detection, PTZ pad (only enabled for features the camera reports), snapshot, fullscreen |
 | AI detection | Multi-category, multi-model YOLO (ONNX) detection on the live video (fire, injured person, flood, damaged building, smoke, other emergencies), run in the background, with filters, overlays, per-category alerts, acknowledgement, history, captured frames and a CSV log |
 | Keyboard | Configurable shortcuts with key-down/key-up movement and focus-loss safety |
@@ -41,8 +42,10 @@ button and keyboard flight control, voice takeoff, IMOU/ONVIF camera integration
   confidence, time, camera source, model, status, Acknowledge).
 - **Telemetry.** Link health (heartbeat age, link quality, port, system/component IDs, firmware), vehicle state,
   GPS, battery, an error banner and the vehicle's system messages.
-- **Voice & Microphone.** Microphone selection, ON/OFF and live input level. Voice listening with a timeout countdown,
-  the recognised text, a pre-flight check button, Arm and **Disarm** buttons, and the workflow log.
+- **Voice & Microphone.** Microphone selection, ON/OFF, **Test microphone** (level, noise, SNR, clipping, playback),
+  receiving-audio indicator and live level; speech engine and listening state, Start / Stop listening, live and final
+  transcript; the detected command with its confidence and validation result; the execution result; **Test Mode** with a
+  test button per command, per-command accuracy and a saved accuracy report; and a voice log.
 - **Settings.** Sections for Appearance (theme, animations, sidebar, start screen), Flight controls (speed and
   altitude limits, takeoff altitude, voice pre-flight minimums, confirmations, keyboard), Camera, AI detection (models, thresholds, alerts) and Voice.
 - **Controls & Keyboard Shortcuts.** A reference and editor for every key, with conflict checks and Restore defaults.
@@ -63,7 +66,7 @@ MainV2.cs    ── AeroShell.EnsureDefaultTheme()     (first run → Mustard/Bl
 
 | Module (folder) | Responsibility |
 |---|---|
-| `Branding/BrandingManager`, `AeroPalette` | Loads `branding.json` and `logo.png`; scaled logos, icon, splash image |
+| `Branding/BrandingManager`, `AeroPalette` | Loads `branding.json` and `aeroaid.png`; aspect-preserving fitted logos, icon tile, splash image |
 | `AeroSettings` | Typed preferences in Mission Planner's `config.xml` (`aeroaid.*` keys); DPAPI-encrypted secrets |
 | `UI/*` | AeroButton (rounded, animated, hold events), AeroCard, StatusTile, LevelMeter, Sidebar, AeroScreen base |
 | `Telemetry/TelemetryManager` | 5 Hz snapshots of the existing `CurrentState`, with status grading |
@@ -71,7 +74,7 @@ MainV2.cs    ── AeroShell.EnsureDefaultTheme()     (first run → Mustard/Bl
 | `Input/KeyboardControlManager`, `ShortcutMap` | Gated `IMessageFilter` keyboard control and the configurable key map |
 | `Camera/*` | `VideoStreamManager` (GStreamer), `RtspProbe`, `OnvifClient`, `CameraConnectionManager`, `CameraPtzManager`, `VideoView` |
 | `Vision/*` | `DetectionCategories` (category registry), `AiSettings` (models and options), `YoloOnnxDetector` (ONNX Runtime), `AiDetectionManager` (multi-model background loop, per-category alert episodes), `DetectionAlertNotifier` |
-| `Audio/*`, `Voice/*` | `WaveInCapture` (winmm), `MicrophoneManager`, `VoiceCommandEngine` (System.Speech), `VoiceTakeoffWorkflow` |
+| `Audio/*`, `Voice/*` | `WaveInCapture` (winmm), `MicrophoneManager`, `VoiceActivityDetector`, `VoiceCommandEngine` (pipeline), `SpeechRecognizers` (Vosk; Windows speech fallback), `VoiceGrammar`, `VoiceCommandParser` (classifier), `VoiceSafety`, `VoiceCommandController` (confirmation + MAVLink), `VoiceTestSession` (Test Mode), `VoiceLog` |
 | `Views/*` | The AeroAid screens (registered with Mission Planner's `MainSwitcher`) |
 
 Data flow: the transport (`ExtLibs/Comms`) feeds `MAVLinkInterface`, which feeds `MAVState.cs`. From there,
@@ -106,7 +109,9 @@ Restore everything with `git checkout original-baseline`; review the changes wit
 | GStreamer 1.x (x64) | Live video | Offered in-app ("Live video requires GStreamer…"). Downloads Mission Planner's package (~120 MB) to `C:\ProgramData\Mission Planner\gstreamer` |
 | `Microsoft.ML.OnnxRuntime` 1.20.1 (NuGet) | AI detection inference | Restored at build time; `onnxruntime.dll` ships next to the exe |
 | Trained YOLO ONNX model(s) per category | AI detection | **You must provide them** (see §8) |
-| Windows speech recogniser (en-US) | Voice commands | Installed with Windows (Settings › Time & language › Speech) |
+| `Vosk` 0.3.38 (NuGet, Apache-2.0) | Voice command recognition | Restored at build time; `libvosk.dll` + MinGW runtime DLLs ship next to the exe |
+| `vosk-model-small-en-us-0.15` (41 MB) | Voice command recognition | Downloaded in-app (Voice page), SHA-256 verified |
+| Windows speech recogniser (en-US) | Voice fallback only | Installed with Windows |
 | Microsoft Visual C++ 2015–2022 x64 redistributable | ONNX Runtime | Usually already installed |
 
 ## 6. Camera configuration
@@ -183,20 +188,43 @@ alerted. Alerts, captured frames and `detections.csv` (category, confidence, tim
 classes, screenshot) are saved in `Documents\Mission Planner\AeroAid\detections\`.
 ## 9. Voice recognition setup
 
-1. Make sure an English speech recogniser is installed (Windows Settings › Time & language › Speech). The Voice
-   screen shows the recogniser it found.
-2. Allow desktop apps to use the microphone: Settings › Privacy & security › Microphone.
-3. On **Voice & Microphone**: choose the microphone, switch **Microphone ON**, check the input level moves, then
-   **Start listening**.
-4. Say **"take off"**, "drone take off" or "initiate takeoff". Then:
-   - pre-flight checks run (link, ArduCopter, on the ground, GPS 3D fix and minimum satellites, EKF, pre-arm, battery
-     minimum, no failsafe);
-   - **Step 1, the ARM confirmation, is mandatory.** The vehicle is switched to GUIDED and armed normally; arming is
-     never forced.
-   - **Step 2 is the TAKEOFF confirmation**, then a GUIDED takeoff to the configured altitude. If you cancel after
-     arming, AeroAid offers to **Disarm**.
-5. Settings › Voice controls the minimum recognition confidence (default 75 %), the listening timeout and the
-   repeat cool-down.
+Voice control uses the offline **Vosk** recogniser restricted to the command vocabulary. Why it was chosen over Windows
+speech and Whisper is in `VOICE_RECOGNITION_ENGINE_COMPARISON.md`; test results are in `VOICE_CONTROL_TEST_REPORT.md`.
+
+1. **Speech model (once):** Voice & Microphone › **Download speech model (41 MB)**. It is checksum-verified and stored in
+   `Documents\Mission Planner\AeroAid\models\voice\`. Without it the app falls back to Windows speech (less accurate);
+   the *Speech engine* tile shows which engine is active.
+2. Allow desktop apps to use the microphone: Settings › Privacy & security › Microphone (**Privacy settings** button).
+3. Choose the microphone, press **Microphone ON**, then **Test microphone**. It records 4 s and reports level, noise, SNR
+   and clipping; **Play recording** plays it back. "Receiving audio" must show YES while you speak.
+4. **Test Mode is on by default.** Nothing is sent to the vehicle. Press **Test voice recognition**, click a command
+   (ARM … LAND, or NEGATED), say it repeatedly, then **Save accuracy report**. Turn Test Mode off only when the report
+   shows no wrong commands.
+5. Commands (say "drone …" or "please …" around them if you like):
+
+   | Say | Command | Confirmation |
+   |---|---|---|
+   | "arm", "arm the drone", "drone arm" | ARM | always |
+   | "disarm", "disarm the drone", "drone disarm" | DISARM | always; refused while airborne |
+   | "take off", "drone take off", "take off now" | TAKEOFF | always; vehicle must be armed |
+   | "stop" | STOP (BRAKE, or hold) | optional (off) |
+   | "hold position", "hold" | HOLD (GUIDED hold) | optional (off) |
+   | "return to launch", "return home", "RTL" | RTL | on by default |
+   | "land" | LAND | on by default |
+
+   Rejected, never executed:
+   - negations ("do not arm the drone");
+   - two commands ("disarm and arm the drone");
+   - questions;
+   - sentences that merely contain a command word ("my arm hurts", "hold on");
+   - low confidence ("please repeat").
+6. Every command is checked against the vehicle state, confirmed where required, sent over the existing
+   `MainV2.comPort` link, and reported as completed only when the vehicle's ACK **and** its reported state (armed flag,
+   mode, climb) confirm it.
+7. Settings › Voice: engine, Test Mode, microphone, minimum confidence (70 %), end-of-command pause (650 ms), auto-stop,
+   cool-down, STOP/HOLD and RTL/LAND confirmation.
+8. Every utterance, decision and result is logged to `aeroaid_voice.log` in the Mission Planner data folder. No audio
+   is stored.
 
 ## 10. Drone connection
 
@@ -252,16 +280,19 @@ Camera, Camera Control and AI Detection, and never while typing in a text field.
   - **Tested with a GStreamer test pattern:** the live-video path.
   - **Tested with a synthetic test-fixture ONNX model:** the AI-detection pipeline (two models; fire, smoke, injured person, flood, and ignored classes). This checks decoding and the
     alert flow, not detection quality.
-  - **Tested with synthesised speech:** voice recognition.
+  - **Tested with synthesised speech (12 voices, 7 English accents, noise) and an acoustic speaker → microphone loop:**
+    voice recognition. **Not yet tested with a live human voice**: use Test Mode (§9).
   - **Nothing has been tested on real hardware:** not with a real drone, not with the IMOU K2EP, not with real detection models.
-- The voice workflow's dialog sequence wasn't triggered by live speech in testing. The test laptop's microphone
-  echo-cancellation suppressed speaker playback, giving low confidence, which was correctly rejected. Its components
-  were tested individually.
+- Voice control has been tested with synthesised speech and a speaker-to-microphone loop, not yet with a live human
+  voice; see `VOICE_CONTROL_TEST_REPORT.md`. Isolated words that sound like "arm" ("on", "harm") can be heard as ARM, and ARM
+  always asks for confirmation.
 - Button and keyboard movement supports **ArduCopter only**. Planes and rovers keep all stock Mission Planner functions.
 - IMOU PTZ and two-way audio depend on the camera's ONVIF support (see §7).
 - AI detection needs models you supply (§8) and runs on the CPU. Injured person, flood, damaged building and other-emergency detection are **architecture-ready but not operational** until such models are added and validated. Analysis rate trades accuracy against CPU load.
 - GStreamer's very first start can take up to a minute while it builds its plugin cache.
-- Speech recognition is English-only (Windows recogniser) and uses a fixed command grammar.
+- Speech recognition is English-only (offline Vosk model). Accuracy depends on the speaker's voice, the microphone and
+  background noise; loud background conversation makes commands "unclear" (asked to repeat), never a different command.
 - The stock Mission Planner screens keep their own layouts; they adopt the Mustard/Black colours through the theme.
-- The placeholder logo in `Assets/Branding/logo.png` should be replaced with your own: a square transparent PNG,
-  512×512 recommended.
+- The logo is the AEROAID wordmark `Assets/Branding/aeroaid.png` (transparent PNG). It is wide (about 4:1), so in the
+  square window/taskbar icon it is small: legible from 48 px, only a mark at 16–32 px. A square symbol version could be
+  added later for the icon only. See `AEROAID_BRANDING_REPORT.md`.

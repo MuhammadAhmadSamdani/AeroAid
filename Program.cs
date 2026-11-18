@@ -246,7 +246,7 @@ namespace MissionPlanner
                 SplashBG = new Bitmap(Settings.GetRunningDirectory() + "splashbg.png");
 
 #if !LIB
-            // AeroAid branding: name, icon and splash come from Assets/Branding (branding.json + logo.png)
+            // AeroAid branding: name, icon and splash come from Assets/Branding (branding.json + aeroaid.png)
             MissionPlanner.AeroAid.AeroShell.ApplyProgramBranding();
             name = MissionPlanner.AeroAid.Branding.BrandingManager.AppName;
             if (MissionPlanner.AeroAid.Branding.BrandingManager.Logo != null)

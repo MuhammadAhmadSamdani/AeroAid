@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Condition=" '$(TargetFramework)' == '' AND '$(ExcludeRestorePackageImports)' != 'true' ">
+    <Import Project="$(NuGetPackageRoot)minver\7.0.0\buildMultiTargeting\MinVer.targets" Condition="Exists('$(NuGetPackageRoot)minver\7.0.0\buildMultiTargeting\MinVer.targets')" />
+  </ImportGroup>
+  <ImportGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' AND '$(ExcludeRestorePackageImports)' != 'true' ">
+    <Import Project="$(NuGetPackageRoot)netstandard.library\2.0.3\build\netstandard2.0\NETStandard.Library.targets" Condition="Exists('$(NuGetPackageRoot)netstandard.library\2.0.3\build\netstandard2.0\NETStandard.Library.targets')" />
+    <Import Project="$(NuGetPackageRoot)minver\7.0.0\build\MinVer.targets" Condition="Exists('$(NuGetPackageRoot)minver\7.0.0\build\MinVer.targets')" />
+    <Import Project="$(NuGetPackageRoot)microsoft.windows.cswin32\0.3.269\build\netstandard1.0\Microsoft.Windows.CsWin32.targets" Condition="Exists('$(NuGetPackageRoot)microsoft.windows.cswin32\0.3.269\build\netstandard1.0\Microsoft.Windows.CsWin32.targets')" />
+  </ImportGroup>
+</Project>

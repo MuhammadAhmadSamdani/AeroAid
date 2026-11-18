@@ -26,6 +26,8 @@ namespace MissionPlanner.AeroAid.Telemetry
         public string Mode = "";
         public bool Armed;
         public bool Landed;
+        /// <summary>MAV_LANDED_STATE from EXTENDED_SYS_STATE: 0 unknown, 1 on ground, 2 in air, 3 taking off, 4 landing.</summary>
+        public int LandedState;
         public bool Failsafe;
         public int BatteryPercent = -1;
         public double BatteryVoltage;
@@ -182,6 +184,7 @@ namespace MissionPlanner.AeroAid.Telemetry
                 t.Mode = cs.mode ?? "";
                 t.Armed = cs.armed;
                 t.Landed = cs.landed;
+                t.LandedState = cs.landed_state;
                 t.Failsafe = cs.failsafe;
                 t.BatteryPercent = cs.battery_remaining > 0 && cs.battery_remaining <= 100 ? cs.battery_remaining : -1;
                 t.BatteryVoltage = cs.battery_voltage;

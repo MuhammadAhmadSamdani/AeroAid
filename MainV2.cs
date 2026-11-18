@@ -1106,6 +1106,20 @@ namespace MissionPlanner
             if (Program.Logo2 != null)
                 MenuArduPilot.Image = Program.Logo2;
 
+#if !LIB
+            // AeroAid branding: the AEROAID wordmark (Assets/Branding/aeroaid.png) replaces the ArduPilot logo in the
+            // menu bar; same 31 px height as the original, aspect ratio preserved, transparent background.
+            var aeroLogo = MissionPlanner.AeroAid.Branding.BrandingManager.GetLogo(200, 31);
+            if (aeroLogo != null)
+            {
+                MenuArduPilot.Image = aeroLogo;
+                MenuArduPilot.ImageScaling = ToolStripItemImageScaling.None;
+                MenuArduPilot.Width = aeroLogo.Width + 8;
+                MenuArduPilot.ToolTipText = MissionPlanner.AeroAid.Branding.BrandingManager.AppName +
+                                            " - based on Mission Planner for ArduPilot (opens ardupilot.org)";
+            }
+#endif
+
             Application.DoEvents();
 
             Comports.Add(comPort);

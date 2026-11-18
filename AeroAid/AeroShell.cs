@@ -102,9 +102,10 @@ namespace MissionPlanner.AeroAid
                 // AI detection runs in the background (waits for video; inactive without a model)
                 Vision.DetectionAlertNotifier.Install(mainForm);
                 Vision.AiDetectionManager.Instance.ApplySettings();
-                // Voice: a recognised command only STARTS the confirmation workflow (UI thread)
-                Voice.VoiceCommandEngine.Instance.CommandRecognized += (cmd, text, conf) =>
-                    AeroDraw.SafeInvoke(mainForm, async () => await Voice.VoiceTakeoffWorkflow.RunAsync(text, conf));
+                // Voice: a detected command only STARTS the validation + confirmation workflow (UI thread).
+                // CommandDetected fires once per final utterance; the controller also de-duplicates by utterance id.
+                Voice.VoiceCommandEngine.Instance.CommandDetected += u =>
+                    AeroDraw.SafeInvoke(mainForm, async () => await Voice.VoiceCommandController.Instance.HandleAsync(u));
 
                 mainForm.FormClosing += (s, e) =>
                 {

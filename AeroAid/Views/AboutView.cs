@@ -15,29 +15,42 @@ namespace MissionPlanner.AeroAid.Views
             var p = BrandingManager.Palette;
 
             var card = new AeroCard { Dock = DockStyle.Top, Height = 230 };
-            var logo = new PictureBox
+            // the AEROAID wordmark (contains the name); aspect ratio preserved, transparent on the card
+            var logoImage = BrandingManager.GetLogo(400, 96);
+            var textTop = 34;
+            if (logoImage != null)
             {
-                Image = BrandingManager.GetLogo(160),
-                SizeMode = PictureBoxSizeMode.CenterImage,
-                Size = new Size(170, 170),
-                Location = new Point(20, 24),
-                BackColor = Color.Transparent
-            };
-            card.Controls.Add(logo);
-            var name = AeroDraw.Title(BrandingManager.AppName, 26f);
-            name.ForeColor = p.Accent;
-            name.Location = new Point(210, 34);
-            card.Controls.Add(name);
+                var logo = new PictureBox
+                {
+                    Image = logoImage,
+                    SizeMode = PictureBoxSizeMode.CenterImage,
+                    Size = logoImage.Size,
+                    Location = new Point(24, 26),
+                    BackColor = Color.Transparent
+                };
+                card.Controls.Add(logo);
+                textTop = 26 + logoImage.Height + 14;
+            }
+            else
+            {
+                var name = AeroDraw.Title(BrandingManager.AppName, 26f);
+                name.ForeColor = p.Accent;
+                name.Location = new Point(24, 26);
+                card.Controls.Add(name);
+                textTop = 80;
+            }
+
             var tag = AeroDraw.Body(BrandingManager.Tagline, 12f);
-            tag.Location = new Point(214, 84);
+            tag.Location = new Point(28, textTop);
             card.Controls.Add(tag);
             var ver = AeroDraw.Caption("Version " + BrandingManager.Version + "   •   Based on Mission Planner " +
                                        BrandingManager.BaseVersion, 10f);
-            ver.Location = new Point(214, 116);
+            ver.Location = new Point(28, textTop + 30);
             card.Controls.Add(ver);
             var by = AeroDraw.Caption(BrandingManager.Company, 10f);
-            by.Location = new Point(214, 140);
+            by.Location = new Point(28, textTop + 52);
             card.Controls.Add(by);
+            card.Height = Math.Max(230, textTop + 90);
 
             var license = new AeroCard { Title = "Open-source attribution & licence", Glyph = AeroIcons.About, Dock = DockStyle.Top, Height = 300 };
             var text = new Label
