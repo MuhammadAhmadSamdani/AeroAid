@@ -139,3 +139,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\ZedGraph\obj\Release\net472\zh-tw\ZedGraph.resources.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\ZedGraph\obj\Release\net472\ZedGraph.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\ZedGraph\obj\Release\net472\ZedGraph.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\ZedGraph\obj\Release\net472\ZedGraph.sourcelink.json

@@ -419,3 +419,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\tlogThumbnailHandler\obj\Release\net472\tlogThum.7911718D.Up2Date
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\tlogThumbnailHandler\obj\Release\net472\tlogThumbnailHandler.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\tlogThumbnailHandler\obj\Release\net472\tlogThumbnailHandler.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\tlogThumbnailHandler\obj\Release\net472\tlogThumbnailHandler.sourcelink.json

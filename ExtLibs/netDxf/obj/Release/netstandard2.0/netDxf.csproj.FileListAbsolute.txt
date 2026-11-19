@@ -21,3 +21,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\netDxf\obj\Release\netstandard2.0\netDxf.csproj.CoreCompileInputs.cache
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\netDxf\obj\Release\netstandard2.0\netDxf.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\netDxf\obj\Release\netstandard2.0\netDxf.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\netDxf\obj\Release\netstandard2.0\netDxf.sourcelink.json

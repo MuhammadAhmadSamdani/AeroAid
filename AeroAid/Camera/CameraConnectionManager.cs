@@ -58,6 +58,22 @@ namespace MissionPlanner.AeroAid.Camera
             }
         }
 
+        /// <summary>Short ONVIF/PTZ status, reported independently of RTSP video.</summary>
+        public static string OnvifPtzStatus(CameraCapabilities c)
+        {
+            if (Probing) return "Checking...";
+            if (c == null || !c.Tested) return "Not checked (video does not need ONVIF)";
+            if (c.PtzAvailable) return "Available";
+            return c.OnvifAvailable ? "ONVIF connected, PTZ unavailable" : "Unavailable";
+        }
+
+        /// <summary>Independent RTSP / ONVIF / PTZ lines for status labels.</summary>
+        public static string StatusSummary(CameraCapabilities c) =>
+            "RTSP video: " + c.Rtsp.Message + "\n" +
+            "ONVIF/PTZ: " + OnvifPtzStatus(c) + " - " + c.OnvifMessage + "\n" +
+            "PTZ: " + c.PtzMessage + "\n" +
+            "(ONVIF/PTZ problems do not stop live video.)";
+
         public static async Task<CameraCapabilities> ProbeAsync(CancellationToken ct = default(CancellationToken))
         {
             if (!await probeLock.WaitAsync(0, ct).ConfigureAwait(false))
@@ -65,17 +81,18 @@ namespace MissionPlanner.AeroAid.Camera
             Probing = true;
             Raise();
             var caps = new CameraCapabilities();
+            Task<RtspProbeResult> rtspTask = null;
             try
             {
                 var user = CameraSettings.Username;
                 var password = CameraSettings.Password;
 
-                // 1) RTSP
+                // 1) RTSP (video) - runs concurrently with and independently of ONVIF: an ONVIF timeout
+                //    neither delays nor affects the RTSP/video result.
                 if (!string.IsNullOrEmpty(CameraSettings.CustomPipeline))
-                    caps.Rtsp = new RtspProbeResult { Status = RtspProbeStatus.NotConfigured, Message = "Custom GStreamer pipeline configured - RTSP probe skipped." };
+                    rtspTask = Task.FromResult(new RtspProbeResult { Status = RtspProbeStatus.NotConfigured, Message = "Custom GStreamer pipeline configured - RTSP probe skipped." });
                 else
-                    caps.Rtsp = await RtspProbe.DescribeAsync(CameraSettings.BuildRtspUrl(), user, password, ct).ConfigureAwait(false);
-                log.Info("Camera RTSP probe: " + caps.Rtsp.Status + " " + caps.Rtsp.Message);
+                    rtspTask = RtspProbe.DescribeAsync(CameraSettings.BuildRtspUrl(), user, password, ct);
 
                 // 2) ONVIF
                 var host = CameraSettings.EffectiveHost;
@@ -174,6 +191,25 @@ namespace MissionPlanner.AeroAid.Camera
             }
             finally
             {
+                if (rtspTask != null)
+                {
+                    try
+                    {
+                        caps.Rtsp = await rtspTask.ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        caps.Rtsp = new RtspProbeResult { Status = RtspProbeStatus.Error, Message = "RTSP probe cancelled." };
+                    }
+                    catch (Exception ex)
+                    {
+                        log.Error("RTSP probe failed", ex);
+                        caps.Rtsp = new RtspProbeResult { Status = RtspProbeStatus.Error, Message = "RTSP probe failed: " + ex.Message };
+                    }
+
+                    log.Info("Camera RTSP probe: " + caps.Rtsp.Status + " " + caps.Rtsp.Message);
+                }
+
                 caps.ProbedAt = DateTime.Now;
                 Capabilities = caps;
                 Probing = false;

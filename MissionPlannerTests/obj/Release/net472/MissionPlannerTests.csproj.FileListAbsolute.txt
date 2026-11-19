@@ -3420,3 +3420,5 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Mis
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\MissionPlannerTests\bin\Verify\uk\MissionPlanner.Strings.resources.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\MissionPlannerTests\bin\Verify\zh-Hans\MissionPlanner.Strings.resources.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\MissionPlannerTests\bin\Release\net472\Assets\Branding\aeroaid.png
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\MissionPlannerTests\bin\Release\net472\Assets\Branding\logo.png
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\MissionPlannerTests\obj\Release\net472\MissionPlannerTests.sourcelink.json

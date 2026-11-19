@@ -57,3 +57,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\px4uploader\obj\Release\netstandard2.0\px4uploa.F4183767.Up2Date
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\px4uploader\obj\Release\netstandard2.0\px4uploader.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\px4uploader\obj\Release\netstandard2.0\px4uploader.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\px4uploader\obj\Release\netstandard2.0\px4uploader.sourcelink.json

@@ -234,3 +234,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\ArduPilot\obj\Release\netstandard2.0\MissionP.15A5F6DE.Up2Date
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\ArduPilot\obj\Release\netstandard2.0\MissionPlanner.ArduPilot.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\ArduPilot\obj\Release\netstandard2.0\MissionPlanner.ArduPilot.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\ArduPilot\obj\Release\netstandard2.0\MissionPlanner.ArduPilot.sourcelink.json

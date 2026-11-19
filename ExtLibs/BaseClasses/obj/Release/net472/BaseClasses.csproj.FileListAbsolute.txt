@@ -25,3 +25,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\BaseClasses\obj\Release\net472\BaseClas.C62F75DE.Up2Date
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\BaseClasses\obj\Release\net472\BaseClasses.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\BaseClasses\obj\Release\net472\BaseClasses.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\BaseClasses\obj\Release\net472\BaseClasses.sourcelink.json

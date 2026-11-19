@@ -21,3 +21,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\WinUSBNet\obj\Release\netstandard2.0\Nefarius.Drivers.WinUSB.csproj.CoreCompileInputs.cache
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\WinUSBNet\obj\Release\netstandard2.0\Nefarius.Drivers.WinUSB.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\WinUSBNet\obj\Release\netstandard2.0\Nefarius.Drivers.WinUSB.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\WinUSBNet\obj\Release\netstandard2.0\Nefarius.Drivers.WinUSB.sourcelink.json

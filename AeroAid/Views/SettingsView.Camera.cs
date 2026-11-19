@@ -41,7 +41,7 @@ namespace MissionPlanner.AeroAid.Views
             AeroDraw.AddRow(grid, "Stream", sub);
             AeroDraw.AddRow(grid, "Latency buffer", latency, "ms");
             AeroDraw.AddRow(grid, "Transport", tcp);
-            AeroDraw.AddRow(grid, "Custom pipeline", pipeline, "advanced; must end with appsink name=outsink");
+            AeroDraw.AddRow(grid, "Custom pipeline", pipeline, "advanced, needs GStreamer; must end with appsink name=outsink");
 
             var test = AeroDraw.Button("Save & test connection", AeroIcons.Plug, AeroButtonStyle.Primary, 230);
             var clearPw = AeroDraw.Button("Forget password", AeroIcons.Lock, AeroButtonStyle.Secondary, 170);
@@ -87,7 +87,7 @@ namespace MissionPlanner.AeroAid.Views
                 tcp.Checked = CameraSettings.UseTcp;
                 pipeline.Text = CameraSettings.CustomPipeline;
                 var c = CameraConnectionManager.Capabilities;
-                status.Text = c.Tested ? c.Rtsp.Message + "\n" + c.OnvifMessage + "\n" + c.PtzMessage : "Not tested.";
+                status.Text = c.Tested ? CameraConnectionManager.StatusSummary(c) : "Not tested.";
             }, Save);
 
             clearPw.Click += (s, e) =>
@@ -109,7 +109,7 @@ namespace MissionPlanner.AeroAid.Views
                     status.Text = "Testing " + CameraSettings.BuildRtspUrl() + " ...";
                     var c = await CameraConnectionManager.ProbeAsync();
                     status.ForeColor = c.Rtsp.Status == RtspProbeStatus.Ok ? BrandingManager.Palette.StatusOk : BrandingManager.Palette.StatusCritical;
-                    status.Text = c.Rtsp.Message + "\n" + c.OnvifMessage + "\n" + c.PtzMessage;
+                    status.Text = CameraConnectionManager.StatusSummary(c);
                     if (VideoStreamManager.Instance.State != StreamState.Stopped)
                         VideoStreamManager.Instance.ApplySettings();
                 }

@@ -25,10 +25,13 @@ namespace MissionPlanner.AeroAid.Camera
     }
 
     /// <summary>
-    /// Single shared live-video pipeline (GStreamer, as used by Mission Planner's HUD video).
-    /// Frames are deep-copied out of the GStreamer buffer into a System.Drawing bitmap so that any number
-    /// of consumers (live view, dashboard preview, fire detection) can read them safely.
+    /// Single shared live-video pipeline. RTSP video is decoded by an owned FFmpeg process (RTSP over TCP,
+    /// raw BGR24 frames over a pipe - see <see cref="FfmpegVideoSource"/>); GStreamer is only used for the
+    /// advanced "custom pipeline" setting, or as a fallback when FFmpeg is missing but GStreamer is installed.
+    /// Frames are copied into a System.Drawing bitmap so that any number of consumers (live view, dashboard
+    /// preview, AI detection) can read them safely.
     /// Handles start/stop, stall detection, automatic reconnection with back-off and RTSP diagnostics.
+    /// Video never depends on ONVIF: ONVIF/PTZ is probed separately by <see cref="CameraConnectionManager"/>.
     /// </summary>
     public sealed class VideoStreamManager
     {
@@ -42,6 +45,11 @@ namespace MissionPlanner.AeroAid.Camera
         private readonly object controlLock = new object();
         private readonly System.Threading.Timer watchdog;
         private GStreamer gst;
+        private volatile int gstGeneration = -1;
+        private volatile FfmpegVideoSource ffmpeg;
+        private CancellationTokenSource startCts = new CancellationTokenSource();
+        /// <summary>Incremented by every Start/Restart/Stop; work and frames from older generations are discarded.</summary>
+        private int generation;
         private Bitmap latest;
         private long frameId;
         private DateTime lastFrameUtc = DateTime.MinValue;
@@ -50,6 +58,8 @@ namespace MissionPlanner.AeroAid.Camera
         private volatile bool wantRunning;
         private volatile bool pipelineEnded;
         private volatile bool restartBusy;
+        private volatile bool usingGStreamer;
+        private volatile string decoderError;
         private int failures;
         private double fps;
         private DateTime fpsWindowStart = DateTime.UtcNow;
@@ -58,6 +68,8 @@ namespace MissionPlanner.AeroAid.Camera
         public StreamState State { get; private set; } = StreamState.Stopped;
         public string StatusMessage { get; private set; } = "Stream stopped.";
         public string DisplayUrl { get; private set; } = "";
+        /// <summary>Decoder in use, e.g. "FFmpeg" or "GStreamer (custom pipeline)".</summary>
+        public string DecoderName { get; private set; } = "";
         public long FrameId => Interlocked.Read(ref frameId);
         public double Fps => fps;
         public Size FrameSize { get; private set; }
@@ -65,7 +77,7 @@ namespace MissionPlanner.AeroAid.Camera
         /// <summary>(state, message) - raised on worker threads.</summary>
         public event Action<StreamState, string> StateChanged;
 
-        /// <summary>Raised on the GStreamer thread after each new frame is stored (keep handlers tiny).</summary>
+        /// <summary>Raised on the decoder thread after each new frame is stored (keep handlers tiny).</summary>
         public event Action FrameArrived;
 
         private VideoStreamManager()
@@ -88,6 +100,20 @@ namespace MissionPlanner.AeroAid.Camera
             }
         }
 
+        private bool IsCurrent(int gen) => wantRunning && gen == Volatile.Read(ref generation);
+
+        /// <summary>Sets the state only if <paramref name="gen"/> is still the active start (no stale overwrite).</summary>
+        private bool SetStateIfCurrent(int gen, StreamState s, string message)
+        {
+            lock (frameLock)
+            {
+                if (!IsCurrent(gen))
+                    return false;
+                SetState(s, message);
+                return true;
+            }
+        }
+
         /// <summary>Locates the GStreamer runtime (installed by Mission Planner's downloader).</summary>
         public static bool GStreamerAvailable()
         {
@@ -103,6 +129,12 @@ namespace MissionPlanner.AeroAid.Camera
             }
         }
 
+        /// <summary>true if ffmpeg.exe and ffprobe.exe were found (fast, file checks only).</summary>
+        public static bool FfmpegAvailable() => FfmpegLocator.Find() != null;
+
+        /// <summary>Only the advanced custom pipeline setting requires GStreamer.</summary>
+        public static bool NeedsGStreamer => !string.IsNullOrEmpty(CameraSettings.CustomPipeline);
+
         public void Start()
         {
             if (!CameraSettings.IsConfigured)
@@ -114,24 +146,40 @@ namespace MissionPlanner.AeroAid.Camera
             wantRunning = true;
             failures = 0;
             nextAttemptUtc = DateTime.MinValue;
-            Restart("Connecting to camera... (the very first start can take up to a minute while GStreamer initialises)");
+            Restart("Connecting to camera...");
         }
 
         public void Stop()
         {
-            // frameLock makes "stop" atomic with respect to OnNewImage (no frame/state after Stop)
+            int gen;
+            CancellationTokenSource cts;
+            // frameLock makes "stop" atomic with respect to frame delivery (no frame/state after Stop)
             lock (frameLock)
+            {
                 wantRunning = false;
-            var g = gst;
+                gen = Interlocked.Increment(ref generation);
+                cts = startCts;
+                startCts = new CancellationTokenSource();
+            }
+
+            CancelQuietly(cts);
+            restartBusy = false;
+            // terminate the decoder immediately (non-blocking); waiting/cleanup happens off the UI thread
+            ffmpeg?.Kill();
             Task.Run(() =>
             {
                 try
                 {
-                    g?.Stop();
+                    lock (controlLock)
+                    {
+                        // a newer Start() already replaced (and stopped) the decoders - leave its pipeline alone
+                        if (gen == Volatile.Read(ref generation))
+                            StopDecoders();
+                    }
                 }
                 catch (Exception ex)
                 {
-                    log.Error("GStreamer stop failed", ex);
+                    log.Error("Video stop failed", ex);
                 }
             });
             lock (frameLock)
@@ -153,97 +201,259 @@ namespace MissionPlanner.AeroAid.Camera
                 Restart("Applying new stream settings...");
         }
 
+        private static void CancelQuietly(CancellationTokenSource cts)
+        {
+            try
+            {
+                cts.Cancel();
+            }
+            catch (Exception)
+            {
+                // a registration callback failed - nothing to do
+            }
+        }
+
+        /// <summary>Stops and releases all decoders. Caller holds controlLock; runs off the UI thread.</summary>
+        private void StopDecoders()
+        {
+            var f = ffmpeg;
+            ffmpeg = null;
+            f?.Dispose();
+            gstGeneration = -1;
+            gst?.Stop();
+        }
+
         private void Restart(string message)
         {
-            if (restartBusy)
-                return;
-            restartBusy = true;
-            SetState(StreamState.Starting, message);
+            int gen;
+            CancellationToken ct;
+            CancellationTokenSource old;
+            lock (frameLock)
+            {
+                if (!wantRunning)
+                    return;
+                gen = Interlocked.Increment(ref generation);
+                old = startCts;
+                startCts = new CancellationTokenSource();
+                ct = startCts.Token;
+                restartBusy = true;
+                SetState(StreamState.Starting, message);
+            }
+
+            CancelQuietly(old); // abort an older start that is still probing
             Task.Run(() =>
             {
                 try
                 {
                     lock (controlLock)
                     {
-                        gst?.Stop();
-                        if (!wantRunning)
+                        if (!IsCurrent(gen))
                             return;
-                        if (!GStreamerAvailable())
-                        {
-                            wantRunning = false;
-                            SetState(StreamState.Error, "GStreamer is not installed. Use \"Install GStreamer\" on the Live Camera screen.");
+                        StopDecoders();
+                        if (!IsCurrent(gen))
                             return;
-                        }
 
-                        var pipeline = BuildPipeline(out var display);
-                        DisplayUrl = display;
-
-                        // Fast pre-check (GStreamer itself can retry silently for a long time on a dead camera)
-                        if (pipeline != null && string.IsNullOrEmpty(CameraSettings.CustomPipeline))
+                        var tools = NeedsGStreamer ? null : FfmpegLocator.Find();
+                        if (!NeedsGStreamer && tools == null && GStreamerAvailable())
                         {
-                            var probe = RtspProbe.DescribeAsync(display, CameraSettings.Username, CameraSettings.Password,
-                                CancellationToken.None, 3000).GetAwaiter().GetResult();
-                            if (!wantRunning)
-                                return; // Stop() was pressed while probing - keep the Stopped state
-                            if (probe.Status == RtspProbeStatus.AuthFailed || probe.Status == RtspProbeStatus.StreamNotFound ||
-                                probe.Status == RtspProbeStatus.NotConfigured)
-                            {
-                                wantRunning = false; // retrying cannot fix these
-                                SetState(StreamState.Error, probe.Message);
-                                return;
-                            }
-
-                            if (probe.Status == RtspProbeStatus.Unreachable || probe.Status == RtspProbeStatus.Error)
-                            {
-                                failures++;
-                                var delay = Math.Min(30, 2 << Math.Min(4, failures - 1));
-                                nextAttemptUtc = DateTime.UtcNow.AddSeconds(delay);
-                                SetState(StreamState.Reconnecting, probe.Message + $" Retrying in {delay} s...");
-                                return;
-                            }
+                            log.Warn("FFmpeg not found - falling back to the installed GStreamer runtime");
+                            StartGStreamer(gen);
                         }
-                        if (pipeline == null)
+                        else if (NeedsGStreamer)
+                            StartGStreamer(gen);
+                        else if (tools == null)
                         {
-                            wantRunning = false;
-                            SetState(StreamState.Error, "Invalid custom pipeline: it must end with 'appsink name=outsink'.");
-                            return;
+                            if (SetStateIfCurrent(gen, StreamState.Error, FfmpegLocator.NotFoundMessage))
+                                wantRunning = false;
                         }
-
-                        if (gst == null)
-                        {
-                            gst = new GStreamer();
-                            gst.OnNewImage += OnNewImage;
-                        }
-
-                        if (!wantRunning)
-                            return;
-                        pipelineEnded = false;
-                        startedUtc = DateTime.UtcNow;
-                        lastFrameUtc = DateTime.MinValue;
-                        gst.Start(pipeline);
+                        else
+                            StartFfmpeg(gen, tools, ct);
                     }
+                }
+                catch (OperationCanceledException)
+                {
+                    // superseded by Stop()/a newer start
                 }
                 catch (Exception ex)
                 {
                     log.Error("Video start failed", ex);
-                    SetState(StreamState.Error, "Video start failed: " + ex.Message);
+                    SetStateIfCurrent(gen, StreamState.Error, "Video start failed: " + CameraSettings.RedactSecrets(ex.Message));
                 }
                 finally
                 {
-                    restartBusy = false;
+                    if (gen == Volatile.Read(ref generation))
+                        restartBusy = false;
                 }
             });
         }
 
-        private void OnNewImage(object sender, MPBitmap image)
+        private void ScheduleRetry(int gen, string message)
         {
-            if (image == null)
+            failures++;
+            var delay = Math.Min(30, 2 << Math.Min(4, failures - 1));
+            nextAttemptUtc = DateTime.UtcNow.AddSeconds(delay);
+            SetStateIfCurrent(gen, StreamState.Reconnecting, message + $" Retrying in {delay} s...");
+        }
+
+        /// <summary>
+        /// Quick RTSP check (TCP connect + DESCRIBE/auth). Returns false (and sets the state) if starting
+        /// the decoder is pointless right now. Independent of ONVIF.
+        /// </summary>
+        private bool PreCheckRtsp(int gen, string displayUrl, CancellationToken ct)
+        {
+            var probe = RtspProbe.DescribeAsync(displayUrl, CameraSettings.Username, CameraSettings.Password, ct, 5000)
+                .GetAwaiter().GetResult();
+            if (!IsCurrent(gen))
+                return false; // Stop() was pressed while probing - keep the Stopped state
+            switch (probe.Status)
             {
-                pipelineEnded = true;
+                case RtspProbeStatus.AuthFailed:
+                case RtspProbeStatus.StreamNotFound:
+                case RtspProbeStatus.NotConfigured:
+                    if (SetStateIfCurrent(gen, StreamState.Error, probe.Message))
+                        wantRunning = false; // retrying cannot fix these
+                    return false;
+                case RtspProbeStatus.Unreachable:
+                case RtspProbeStatus.Error:
+                    ScheduleRetry(gen, probe.Message);
+                    return false;
+                default:
+                    return true;
+            }
+        }
+
+        private void StartFfmpeg(int gen, FfmpegTools tools, CancellationToken ct)
+        {
+            usingGStreamer = false;
+            DecoderName = "FFmpeg";
+            var display = CameraSettings.BuildRtspUrl();
+            DisplayUrl = display;
+
+            // 1) fast RTSP diagnostics (FFmpeg alone would only say "connection failed" after its timeout)
+            if (!PreCheckRtsp(gen, display, ct))
+                return;
+
+            // 2) ffprobe: real codec / resolution / frame rate of the stream
+            var url = CameraSettings.BuildAuthenticatedRtspUrl();
+            var tcp = CameraSettings.UseTcp;
+            SetStateIfCurrent(gen, StreamState.Starting, "Camera RTSP OK - reading stream format...");
+            var info = FfmpegVideoSource.Probe(tools, url, tcp, ct);
+            if (!IsCurrent(gen))
+                return;
+            if (!info.Ok)
+            {
+                if (info.AuthFailed)
+                {
+                    if (SetStateIfCurrent(gen, StreamState.Error, "Authentication failed: wrong username or password."))
+                        wantRunning = false;
+                }
+                else
+                    ScheduleRetry(gen, "FFprobe could not read the video stream (" + info.Error + ").");
                 return;
             }
 
-            if (!wantRunning)
+            // 3) decoder process
+            var size = FfmpegVideoSource.OutputSize(info, CameraSettings.MaxVideoWidth);
+            var source = new FfmpegVideoSource(tools, url, size.Width, size.Height, tcp, CameraSettings.PlayCameraAudio, gen);
+            source.FrameReady += OnFfmpegFrame;
+            source.Ended += OnFfmpegEnded;
+            if (!SetStateIfCurrent(gen, StreamState.Starting,
+                    $"Connecting to RTSP video ({info.Codec} {info.Width}x{info.Height}" +
+                    (info.Fps > 0 ? $" @ {info.Fps:0.#} fps" : "") + ")..."))
+                return;
+            pipelineEnded = false;
+            decoderError = null;
+            startedUtc = DateTime.UtcNow;
+            lastFrameUtc = DateTime.MinValue;
+            ffmpeg = source;
+            source.Start();
+        }
+
+        private void StartGStreamer(int gen)
+        {
+            usingGStreamer = true;
+            DecoderName = NeedsGStreamer ? "GStreamer (custom pipeline)" : "GStreamer";
+            if (!GStreamerAvailable())
+            {
+                if (SetStateIfCurrent(gen, StreamState.Error,
+                        "The custom GStreamer pipeline (Settings › Camera) needs GStreamer, which is not installed. " +
+                        "Clear the custom pipeline to use the built-in FFmpeg RTSP video."))
+                    wantRunning = false;
+                return;
+            }
+
+            var pipeline = BuildPipeline(out var display);
+            DisplayUrl = display;
+            if (pipeline == null)
+            {
+                if (SetStateIfCurrent(gen, StreamState.Error, "Invalid custom pipeline: it must end with 'appsink name=outsink'."))
+                    wantRunning = false;
+                return;
+            }
+
+            if (!NeedsGStreamer && !PreCheckRtsp(gen, display, CancellationToken.None))
+                return;
+
+            if (gst == null)
+            {
+                gst = new GStreamer();
+                gst.OnNewImage += OnNewImage;
+            }
+
+            if (!IsCurrent(gen))
+                return;
+            pipelineEnded = false;
+            decoderError = null;
+            startedUtc = DateTime.UtcNow;
+            lastFrameUtc = DateTime.MinValue;
+            gstGeneration = gen;
+            gst.Start(pipeline);
+        }
+
+        private void OnFfmpegEnded(FfmpegVideoSource source, string error)
+        {
+            if (source.Generation != Volatile.Read(ref generation))
+                return;
+            decoderError = error;
+            pipelineEnded = true;
+        }
+
+        private void OnFfmpegFrame(FfmpegVideoSource source, byte[] bgr)
+        {
+            var gen = source.Generation;
+            if (!IsCurrent(gen))
+                return;
+            int w = source.Width, h = source.Height;
+            var copy = new Bitmap(w, h, PixelFormat.Format24bppRgb); // GDI 24bpp memory order is B,G,R = ffmpeg bgr24
+            var bd = copy.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+            try
+            {
+                var row = w * 3;
+                if (bd.Stride == row)
+                    Marshal.Copy(bgr, 0, bd.Scan0, row * h);
+                else
+                    for (var y = 0; y < h; y++) // GDI rows are padded to 4 bytes
+                        Marshal.Copy(bgr, y * row, bd.Scan0 + y * bd.Stride, row);
+            }
+            finally
+            {
+                copy.UnlockBits(bd);
+            }
+
+            StoreFrame(gen, copy, w, h);
+        }
+
+        private void OnNewImage(object sender, MPBitmap image)
+        {
+            var gen = gstGeneration;
+            if (image == null)
+            {
+                if (gen == Volatile.Read(ref generation))
+                    pipelineEnded = true;
+                return;
+            }
+
+            if (!IsCurrent(gen))
                 return;
             try
             {
@@ -270,47 +480,55 @@ namespace MissionPlanner.AeroAid.Camera
                     copy.UnlockBits(bd);
                 }
 
-                bool becamePlaying;
-                lock (frameLock)
-                {
-                    if (!wantRunning)
-                    {
-                        // Stop() happened while this frame was being copied - discard it
-                        copy.Dispose();
-                        return;
-                    }
-
-                    latest?.Dispose();
-                    latest = copy;
-                    FrameSize = new Size(w, h);
-                    becamePlaying = State != StreamState.Playing;
-                    if (becamePlaying)
-                    {
-                        failures = 0;
-                        // inside the lock so a concurrent Stop() cannot be overwritten (handlers only BeginInvoke)
-                        SetState(StreamState.Playing, $"Live \u2022 {w}x{h}");
-                    }
-                }
-
-                lastFrameUtc = DateTime.UtcNow;
-                Interlocked.Increment(ref frameId);
-                fpsCount++;
-                var span = (lastFrameUtc - fpsWindowStart).TotalSeconds;
-                if (span >= 1)
-                {
-                    fps = fpsCount / span;
-                    fpsCount = 0;
-                    fpsWindowStart = lastFrameUtc;
-                }
-
-                if (becamePlaying)
-                    SetState(StreamState.Playing, $"Live • {w}x{h}");
-
-                FrameArrived?.Invoke();
+                StoreFrame(gen, copy, w, h);
             }
             catch (Exception ex)
             {
                 log.Error("Frame copy failed", ex);
+            }
+        }
+
+        /// <summary>Publishes a decoded frame (takes ownership of <paramref name="copy"/>).</summary>
+        private void StoreFrame(int gen, Bitmap copy, int w, int h)
+        {
+            lock (frameLock)
+            {
+                if (!IsCurrent(gen))
+                {
+                    // Stop()/restart happened while this frame was being copied - discard it
+                    copy.Dispose();
+                    return;
+                }
+
+                latest?.Dispose();
+                latest = copy;
+                FrameSize = new Size(w, h);
+                if (State != StreamState.Playing)
+                {
+                    failures = 0;
+                    // inside the lock so a concurrent Stop() cannot be overwritten (handlers only BeginInvoke)
+                    SetState(StreamState.Playing, $"RTSP video connected • {w}x{h} • {DecoderName}");
+                }
+            }
+
+            lastFrameUtc = DateTime.UtcNow;
+            Interlocked.Increment(ref frameId);
+            fpsCount++;
+            var span = (lastFrameUtc - fpsWindowStart).TotalSeconds;
+            if (span >= 1)
+            {
+                fps = fpsCount / span;
+                fpsCount = 0;
+                fpsWindowStart = lastFrameUtc;
+            }
+
+            try
+            {
+                FrameArrived?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                log.Error("FrameArrived handler failed", ex);
             }
         }
 
@@ -361,15 +579,6 @@ namespace MissionPlanner.AeroAid.Camera
                 if (!wantRunning || restartBusy)
                     return;
                 var now = DateTime.UtcNow;
-                string reason = null;
-                if (pipelineEnded)
-                    reason = "Video stream ended.";
-                // generous first-frame timeout: GStreamer builds its plugin registry on first use (~30 s once)
-                else if (State == StreamState.Starting && lastFrameUtc == DateTime.MinValue && (now - startedUtc).TotalSeconds > 45)
-                    reason = "No video received within 45 s.";
-                else if (State == StreamState.Playing && (now - lastFrameUtc).TotalSeconds > 6)
-                    reason = "Video stream stalled.";
-
                 if (State == StreamState.Reconnecting)
                 {
                     if (now >= nextAttemptUtc)
@@ -377,16 +586,32 @@ namespace MissionPlanner.AeroAid.Camera
                     return;
                 }
 
+                string reason = null;
+                // GStreamer builds its plugin registry on first use (~30 s once); FFmpeg starts in a few seconds
+                var firstFrameTimeout = usingGStreamer ? 45 : 20;
+                if (pipelineEnded)
+                    reason = "Video stream ended" + (string.IsNullOrEmpty(decoderError) ? "." : ": " + decoderError);
+                else if (State == StreamState.Starting && lastFrameUtc == DateTime.MinValue && startedUtc != DateTime.MinValue &&
+                         (now - startedUtc).TotalSeconds > firstFrameTimeout)
+                    reason = $"No video received within {firstFrameTimeout} s.";
+                else if (State == StreamState.Playing && (now - lastFrameUtc).TotalSeconds > 6)
+                    reason = "Video stream stalled.";
+
                 if (reason == null)
                     return;
 
                 failures++;
                 var delay = Math.Min(30, 2 << Math.Min(4, failures - 1));
                 nextAttemptUtc = now.AddSeconds(delay);
-                SetState(StreamState.Reconnecting, reason + $" Reconnecting in {delay} s...");
+                var gen = Volatile.Read(ref generation);
+                if (!SetStateIfCurrent(gen, StreamState.Reconnecting, reason + $" Reconnecting in {delay} s..."))
+                    return;
                 pipelineEnded = false;
+                startedUtc = DateTime.MinValue;
+                // free the dead/stalled decoder now (the reconnect replaces it)
+                ffmpeg?.Kill();
                 if (string.IsNullOrEmpty(CameraSettings.CustomPipeline))
-                    _ = DiagnoseAsync(reason);
+                    _ = DiagnoseAsync(gen, reason);
             }
             catch (Exception ex)
             {
@@ -395,13 +620,13 @@ namespace MissionPlanner.AeroAid.Camera
         }
 
         /// <summary>Uses an RTSP DESCRIBE to turn a generic failure into an actionable message.</summary>
-        private async Task DiagnoseAsync(string reason)
+        private async Task DiagnoseAsync(int gen, string reason)
         {
             try
             {
                 var r = await RtspProbe.DescribeAsync(CameraSettings.BuildRtspUrl(), CameraSettings.Username,
                     CameraSettings.Password, CancellationToken.None).ConfigureAwait(false);
-                if (!wantRunning || State != StreamState.Reconnecting)
+                if (!IsCurrent(gen) || State != StreamState.Reconnecting)
                     return;
                 switch (r.Status)
                 {
@@ -409,17 +634,24 @@ namespace MissionPlanner.AeroAid.Camera
                     case RtspProbeStatus.StreamNotFound:
                     case RtspProbeStatus.NotConfigured:
                         // retrying cannot fix these - stop and tell the user
+                        if (!SetStateIfCurrent(gen, StreamState.Error, r.Message))
+                            return;
                         wantRunning = false;
-                        var g = gst;
-                        _ = Task.Run(() => g?.Stop());
-                        SetState(StreamState.Error, r.Message);
+                        _ = Task.Run(() =>
+                        {
+                            lock (controlLock)
+                            {
+                                if (gen == Volatile.Read(ref generation))
+                                    StopDecoders();
+                            }
+                        });
                         break;
                     case RtspProbeStatus.Ok:
-                        SetState(StreamState.Reconnecting, reason + " Camera RTSP is OK (" + r.VideoCodec +
-                                                           ") - the decoder may lack this codec. Retrying...");
+                        SetStateIfCurrent(gen, StreamState.Reconnecting, reason + " Camera RTSP is OK (" + r.VideoCodec +
+                                                                        ") - the decoder will be restarted...");
                         break;
                     default:
-                        SetState(StreamState.Reconnecting, r.Message + " Retrying...");
+                        SetStateIfCurrent(gen, StreamState.Reconnecting, r.Message + " Retrying...");
                         break;
                 }
             }
@@ -429,7 +661,10 @@ namespace MissionPlanner.AeroAid.Camera
             }
         }
 
-        /// <summary>Builds the GStreamer pipeline. Credentials are passed as rtspsrc properties (redacted in logs).</summary>
+        /// <summary>
+        /// Builds the GStreamer pipeline (custom pipeline, or the RTSP fallback used only when FFmpeg is missing
+        /// but GStreamer is installed). Credentials are passed as rtspsrc properties (redacted in logs).
+        /// </summary>
         public static string BuildPipeline(out string displayUrl)
         {
             var custom = CameraSettings.CustomPipeline;

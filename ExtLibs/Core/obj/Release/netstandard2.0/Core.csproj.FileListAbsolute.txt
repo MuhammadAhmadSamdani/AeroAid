@@ -21,3 +21,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Core\obj\Release\netstandard2.0\Core.csproj.CoreCompileInputs.cache
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Core\obj\Release\netstandard2.0\Core.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Core\obj\Release\netstandard2.0\Core.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Core\obj\Release\netstandard2.0\Core.sourcelink.json

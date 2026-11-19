@@ -5731,3 +5731,5 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\obj
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\obj3\Release\MissionP.770BBEB6.Up2Date
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\obj3\Release\MissionPlanner.exe
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\obj3\Release\MissionPlanner.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\obj3\Release\MissionPlanner.sourcelink.json
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\bin\Release\net461\Assets\Branding\logo.png

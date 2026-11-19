@@ -17,7 +17,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyDescriptionAttribute(("WinUSBNet is a .NET class library that provides easy access to the WinUSB API fro" +
     "m C#, VB.NET and other .NET languages."))]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("0.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("0.0.0-alpha.0.11+242f09232753885cedf446290472aae9dd33fc49")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("0.0.0-alpha.0.12+257cc56286385ec985be43bb15f190e1100260c0")]
 [assembly: System.Reflection.AssemblyProductAttribute("Nefarius.Drivers.WinUSB")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Nefarius.Drivers.WinUSB")]
 [assembly: System.Reflection.AssemblyVersionAttribute("0.0.0.0")]

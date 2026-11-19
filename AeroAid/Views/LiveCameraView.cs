@@ -51,7 +51,7 @@ namespace MissionPlanner.AeroAid.Views
 
             var side = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, BackColor = p.Background };
 
-            var status = new AeroCard { Title = "Stream status", Glyph = AeroIcons.Camera, Width = 320, Height = 210 };
+            var status = new AeroCard { Title = "Stream status", Glyph = AeroIcons.Camera, Width = 320, Height = 290 };
             var sflow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = p.Surface };
             stateLabel.MaximumSize = new Size(290, 0);
             detailLabel.MaximumSize = new Size(290, 0);
@@ -110,12 +110,29 @@ namespace MissionPlanner.AeroAid.Views
             quality.SelectedIndex = CameraSettings.UseSubStream ? 1 : 0;
             cameraAudio.Checked = CameraSettings.PlayCameraAudio;
             VideoStreamManager.Instance.StateChanged += OnState;
+            CameraConnectionManager.CapabilitiesChanged += OnCapabilities;
             OnState(VideoStreamManager.Instance.State, VideoStreamManager.Instance.StatusMessage);
         }
 
         protected override void OnScreenDeactivated()
         {
             VideoStreamManager.Instance.StateChanged -= OnState;
+            CameraConnectionManager.CapabilitiesChanged -= OnCapabilities;
+        }
+
+        private void OnCapabilities() =>
+            OnState(VideoStreamManager.Instance.State, VideoStreamManager.Instance.StatusMessage);
+
+        private static string RtspVideoStatus(StreamState state)
+        {
+            switch (state)
+            {
+                case StreamState.Playing: return "Connected";
+                case StreamState.Starting: return "Connecting";
+                case StreamState.Reconnecting: return "Reconnecting";
+                case StreamState.Error: return "Failed";
+                default: return "Stopped";
+            }
         }
 
         private void OnState(StreamState state, string message)
@@ -132,7 +149,10 @@ namespace MissionPlanner.AeroAid.Views
                     : state == StreamState.Error ? p.StatusCritical
                     : state == StreamState.Stopped ? p.StatusIdle : p.StatusWarn;
                 var url = VideoStreamManager.Instance.DisplayUrl;
-                detailLabel.Text = message + (string.IsNullOrEmpty(url) ? "" : "\n\nSource: " + url) +
+                // RTSP video and ONVIF/PTZ are independent: an ONVIF failure never blocks the video
+                var independent = "RTSP Video: " + RtspVideoStatus(state) +
+                                  "\nONVIF/PTZ: " + CameraConnectionManager.OnvifPtzStatus(CameraConnectionManager.Capabilities);
+                detailLabel.Text = independent + "\n\n" + message + (string.IsNullOrEmpty(url) ? "" : "\n\nSource: " + url) +
                                    (CameraSettings.IsConfigured ? "" : "\n\nConfigure the camera in Settings › Camera.");
             });
         }

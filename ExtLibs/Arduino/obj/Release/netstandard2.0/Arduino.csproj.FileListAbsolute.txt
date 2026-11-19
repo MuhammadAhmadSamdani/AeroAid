@@ -47,3 +47,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Arduino\obj\Release\netstandard2.0\Arduino.csproj.Up2Date
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Arduino\obj\Release\netstandard2.0\Arduino.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Arduino\obj\Release\netstandard2.0\Arduino.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Arduino\obj\Release\netstandard2.0\Arduino.sourcelink.json

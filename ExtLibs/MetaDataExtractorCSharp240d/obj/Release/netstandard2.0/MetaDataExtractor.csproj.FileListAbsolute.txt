@@ -30,3 +30,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\MetaDataExtractorCSharp240d\obj\Release\netstandard2.0\MetaDataExtractor.csproj.CoreCompileInputs.cache
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\MetaDataExtractorCSharp240d\obj\Release\netstandard2.0\MetaDataExtractor.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\MetaDataExtractorCSharp240d\obj\Release\netstandard2.0\MetaDataExtractor.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\MetaDataExtractorCSharp240d\obj\Release\netstandard2.0\MetaDataExtractor.sourcelink.json

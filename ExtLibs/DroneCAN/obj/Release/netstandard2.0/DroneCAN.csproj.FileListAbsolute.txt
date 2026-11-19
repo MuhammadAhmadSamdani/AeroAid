@@ -21,3 +21,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\DroneCAN\obj\Release\netstandard2.0\DroneCAN.csproj.CoreCompileInputs.cache
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\DroneCAN\obj\Release\netstandard2.0\DroneCAN.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\DroneCAN\obj\Release\netstandard2.0\DroneCAN.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\DroneCAN\obj\Release\netstandard2.0\DroneCAN.sourcelink.json

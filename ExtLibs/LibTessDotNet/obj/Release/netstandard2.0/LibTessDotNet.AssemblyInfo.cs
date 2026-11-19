@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute("C# port of the famous GLU Tesselator")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+242f09232753885cedf446290472aae9dd33fc49")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+257cc56286385ec985be43bb15f190e1100260c0")]
 [assembly: System.Reflection.AssemblyProductAttribute("LibTessDotNet")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LibTessDotNet")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

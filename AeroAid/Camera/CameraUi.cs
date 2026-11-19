@@ -10,7 +10,10 @@ namespace MissionPlanner.AeroAid.Camera
     /// <summary>UI helpers shared by the camera screens.</summary>
     public static class CameraUi
     {
-        /// <summary>Starts the stream, offering Mission Planner's GStreamer installer if it is missing.</summary>
+        /// <summary>
+        /// Starts the stream. RTSP video uses FFmpeg (nothing is downloaded automatically); GStreamer is only
+        /// required - and its installer offered - for the advanced custom pipeline setting.
+        /// </summary>
         public static void StartStream()
         {
             if (!CameraSettings.IsConfigured)
@@ -19,10 +22,19 @@ namespace MissionPlanner.AeroAid.Camera
                 return;
             }
 
-            if (!VideoStreamManager.GStreamerAvailable())
+            if (!VideoStreamManager.NeedsGStreamer)
             {
-                if (CustomMessageBox.Show("Live video requires GStreamer (the video engine used by Mission Planner).\n" +
-                                          "Download and install it now (~120 MB from firmware.ardupilot.org)?",
+                if (!VideoStreamManager.FfmpegAvailable() && !VideoStreamManager.GStreamerAvailable())
+                {
+                    CustomMessageBox.Show(FfmpegLocator.NotFoundMessage, BrandingManager.AppName);
+                    return;
+                }
+            }
+            else if (!VideoStreamManager.GStreamerAvailable())
+            {
+                if (CustomMessageBox.Show("The custom video pipeline set in Settings › Camera requires GStreamer.\n" +
+                                          "(Clear the custom pipeline to use the built-in FFmpeg RTSP video instead.)\n\n" +
+                                          "Download and install GStreamer now (~120 MB from firmware.ardupilot.org)?",
                         BrandingManager.AppName, MessageBoxButtons.YesNo) != (int)DialogResult.Yes)
                     return;
                 GStreamerUI.DownloadGStreamer();

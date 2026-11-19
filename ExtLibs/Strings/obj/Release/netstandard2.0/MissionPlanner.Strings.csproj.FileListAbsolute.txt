@@ -115,3 +115,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Strings\obj\Release\netstandard2.0\zh-Hans\MissionPlanner.Strings.resources.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Strings\obj\Release\netstandard2.0\MissionPlanner.Strings.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Strings\obj\Release\netstandard2.0\MissionPlanner.Strings.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Strings\obj\Release\netstandard2.0\MissionPlanner.Strings.sourcelink.json

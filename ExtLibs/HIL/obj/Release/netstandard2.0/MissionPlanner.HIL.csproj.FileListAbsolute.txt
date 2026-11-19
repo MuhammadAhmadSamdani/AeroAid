@@ -236,3 +236,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\HIL\obj\Release\netstandard2.0\MissionP.FE175601.Up2Date
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\HIL\obj\Release\netstandard2.0\MissionPlanner.HIL.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\HIL\obj\Release\netstandard2.0\MissionPlanner.HIL.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\HIL\obj\Release\netstandard2.0\MissionPlanner.HIL.sourcelink.json

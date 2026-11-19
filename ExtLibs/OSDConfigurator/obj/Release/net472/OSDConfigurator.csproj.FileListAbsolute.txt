@@ -57,3 +57,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\OSDConfigurator\obj\Release\net472\OSDConfi.D15E0E27.Up2Date
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\OSDConfigurator\obj\Release\net472\OSDConfigurator.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\OSDConfigurator\obj\Release\net472\OSDConfigurator.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\OSDConfigurator\obj\Release\net472\OSDConfigurator.sourcelink.json

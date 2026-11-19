@@ -26,3 +26,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\WebAPIs\obj\Release\netstandard2.0\MissionP.81B70F8A.Up2Date
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\WebAPIs\obj\Release\netstandard2.0\MissionPlanner.WebAPIs.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\WebAPIs\obj\Release\netstandard2.0\MissionPlanner.WebAPIs.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\WebAPIs\obj\Release\netstandard2.0\MissionPlanner.WebAPIs.sourcelink.json

@@ -417,3 +417,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Maps\obj\Release\net472\MissionP.2A52E898.Up2Date
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Maps\obj\Release\net472\MissionPlanner.Maps.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Maps\obj\Release\net472\MissionPlanner.Maps.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Maps\obj\Release\net472\MissionPlanner.Maps.sourcelink.json

@@ -155,3 +155,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Onvif\obj\Release\netstandard2.0\Onvif.csproj.Up2Date
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Onvif\obj\Release\netstandard2.0\Onvif.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Onvif\obj\Release\netstandard2.0\Onvif.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\Onvif\obj\Release\netstandard2.0\Onvif.sourcelink.json

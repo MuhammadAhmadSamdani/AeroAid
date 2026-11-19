@@ -21,3 +21,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\SharpAdbClient\obj\Release\netstandard2.0\SharpAdbClient.csproj.CoreCompileInputs.cache
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\SharpAdbClient\obj\Release\netstandard2.0\SharpAdbClient.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\SharpAdbClient\obj\Release\netstandard2.0\SharpAdbClient.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\SharpAdbClient\obj\Release\netstandard2.0\SharpAdbClient.sourcelink.json

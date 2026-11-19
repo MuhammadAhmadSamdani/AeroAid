@@ -1,4 +1,6 @@
 using System;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace MissionPlanner.AeroAid.Camera
 {
@@ -101,13 +103,34 @@ namespace MissionPlanner.AeroAid.Camera
 
         /// <summary>
         /// Advanced: complete GStreamer source pipeline that replaces the RTSP source (e.g. a UDP/H.264
-        /// stream from a companion computer). It MUST end with
+        /// stream from a companion computer). Only this option needs GStreamer - normal RTSP streaming
+        /// uses FFmpeg. It MUST end with
         /// "videoconvert ! video/x-raw,format=BGRA ! appsink name=outsink".
         /// </summary>
         public static string CustomPipeline
         {
             get => AeroSettings.GetString("camera.pipeline", "").Trim();
             set => AeroSettings.SetString("camera.pipeline", (value ?? "").Trim());
+        }
+
+        /// <summary>
+        /// Optional: folder (or full path of ffmpeg.exe) of an FFmpeg build to use for live video. Empty = auto-detect
+        /// (AeroAid folder\ffmpeg, PATH, WinGet, Chocolatey, Scoop, C:\ffmpeg). See <see cref="FfmpegLocator"/>.
+        /// </summary>
+        public static string FfmpegPath
+        {
+            get => AeroSettings.GetString("camera.ffmpeg_path", "").Trim().Trim('"');
+            set => AeroSettings.SetString("camera.ffmpeg_path", (value ?? "").Trim());
+        }
+
+        /// <summary>
+        /// Decoded frames wider than this are scaled down (aspect ratio kept) inside FFmpeg. Keeps the
+        /// raw-frame pipe and UI rendering light: the main stream of the K2E is ~2880x1620.
+        /// </summary>
+        public static int MaxVideoWidth
+        {
+            get => AeroSettings.GetInt("camera.max_width", 1280, 320, 7680);
+            set => AeroSettings.SetInt("camera.max_width", value);
         }
 
         public static bool IsConfigured =>
@@ -120,10 +143,72 @@ namespace MissionPlanner.AeroAid.Camera
                 return StripCredentials(RtspUrlOverride);
             if (string.IsNullOrEmpty(Host))
                 return "";
-            var path = RtspPath.Replace("{subtype}", UseSubStream ? "1" : "0");
+            var sub = UseSubStream ? "1" : "0";
+            var path = RtspPath;
+            path = path.Contains("{subtype}")
+                ? path.Replace("{subtype}", sub)
+                // a path saved with a literal subtype (e.g. "...&subtype=0") still follows the sub-stream option
+                : Regex.Replace(path, @"([?&]subtype=)\d+", "${1}" + sub);
             if (!path.StartsWith("/"))
                 path = "/" + path;
             return $"rtsp://{Host}:{RtspPort}{path}";
+        }
+
+        /// <summary>
+        /// RTSP URL WITH percent-encoded credentials (rtsp://user:pass@host:port/path?query) for the decoder.
+        /// NEVER log or display this value - use <see cref="BuildRtspUrl"/> / <see cref="RedactSecrets"/>.
+        /// </summary>
+        public static string BuildAuthenticatedRtspUrl() => WithCredentials(BuildRtspUrl(), Username, Password);
+
+        /// <summary>Inserts percent-encoded user:password@ after the scheme (path and query are kept verbatim).</summary>
+        public static string WithCredentials(string url, string user, string password)
+        {
+            if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(user) && string.IsNullOrEmpty(password))
+                return url ?? "";
+            url = StripCredentials(url);
+            var scheme = url.IndexOf("://", StringComparison.Ordinal);
+            if (scheme < 0)
+                return url;
+            var auth = EncodeUserInfo(user ?? "") + (string.IsNullOrEmpty(password) ? "" : ":" + EncodeUserInfo(password));
+            return url.Substring(0, scheme + 3) + auth + "@" + url.Substring(scheme + 3);
+        }
+
+        /// <summary>
+        /// Percent-encodes a URL user-info component (RFC 3986): unreserved characters and sub-delims stay
+        /// literal, everything else (':', '@', '/', '?', '#', '%', spaces, non-ASCII...) is UTF-8 %XX encoded.
+        /// </summary>
+        public static string EncodeUserInfo(string s)
+        {
+            const string safe = "-._~!$&'()*+,;=";
+            var sb = new StringBuilder();
+            foreach (var b in Encoding.UTF8.GetBytes(s ?? ""))
+            {
+                var c = (char)b;
+                if (b < 0x80 && (char.IsLetterOrDigit(c) || safe.IndexOf(c) >= 0))
+                    sb.Append(c);
+                else
+                    sb.Append('%').Append(b.ToString("X2"));
+            }
+
+            return sb.ToString();
+        }
+
+        /// <summary>Removes URL credentials and the stored password (raw or encoded) from any text, e.g. decoder errors.</summary>
+        public static string RedactSecrets(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return text ?? "";
+            text = Regex.Replace(text, @"([a-zA-Z][a-zA-Z0-9+.-]*://)[^/\s@]+@", "$1***@");
+            var pw = Password;
+            if (!string.IsNullOrEmpty(pw))
+            {
+                text = text.Replace(pw, "***");
+                var enc = EncodeUserInfo(pw);
+                if (enc != pw)
+                    text = text.Replace(enc, "***");
+            }
+
+            return text;
         }
 
         /// <summary>Removes any user:password@ part from a URL.</summary>

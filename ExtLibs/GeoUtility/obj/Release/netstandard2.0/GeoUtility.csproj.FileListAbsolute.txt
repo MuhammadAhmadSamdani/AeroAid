@@ -25,3 +25,4 @@ C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\Ext
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\GeoUtility\obj\Release\netstandard2.0\GeoUtility.csproj.CoreCompileInputs.cache
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\GeoUtility\obj\Release\netstandard2.0\GeoUtility.dll
 C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\GeoUtility\obj\Release\netstandard2.0\GeoUtility.pdb
+C:\Users\uroob\Downloads\AeroAid\MissionPlanner-master\MissionPlanner-master\ExtLibs\GeoUtility\obj\Release\netstandard2.0\GeoUtility.sourcelink.json

@@ -61,15 +61,28 @@ namespace MissionPlanner.AeroAid.Camera
             }
 
             var port = uri.Port > 0 ? uri.Port : 554;
+            var exchangeTimedOut = false;
             try
             {
                 using (var client = new TcpClient())
+                using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct))
+                // NetworkStream async reads ignore ReceiveTimeout on .NET Framework: bound the whole exchange
+                // (connect + up to two DESCRIBEs) by closing the socket, so a camera that accepts the TCP
+                // connection but never answers cannot hang the caller.
+                using (deadline.Token.Register(() =>
+                       {
+                           exchangeTimedOut = !ct.IsCancellationRequested;
+                           try { client.Close(); } catch (Exception) { }
+                       }))
                 {
+                    deadline.CancelAfter(timeoutMs * 2);
                     var connect = client.ConnectAsync(uri.Host, port);
                     if (await Task.WhenAny(connect, Task.Delay(timeoutMs, ct)).ConfigureAwait(false) != connect || !client.Connected)
                     {
                         result.Status = RtspProbeStatus.Unreachable;
-                        result.Message = $"Camera not reachable at {uri.Host}:{port} (check IP address, network and that RTSP is enabled in the Imou Life app).";
+                        result.Message = $"Camera not reachable at {uri.Host}:{port} (check the camera is powered and on this " +
+                                         "network, that its IP address has not changed - a hotspot/router can assign a new one - " +
+                                         "and that RTSP is enabled in the Imou Life app).";
                         return result;
                     }
 
@@ -129,10 +142,14 @@ namespace MissionPlanner.AeroAid.Camera
             {
                 throw;
             }
-            catch (Exception ex) when (ex is SocketException || ex is IOException)
+            catch (Exception ex) when (ex is SocketException || ex is IOException || ex is ObjectDisposedException ||
+                                       ex is InvalidOperationException)
             {
+                ct.ThrowIfCancellationRequested();
                 result.Status = RtspProbeStatus.Unreachable;
-                result.Message = "RTSP connection failed: " + ex.Message;
+                result.Message = exchangeTimedOut
+                    ? $"Camera at {uri.Host}:{port} did not answer the RTSP request in time."
+                    : "RTSP connection failed: " + ex.Message;
             }
 
             return result;

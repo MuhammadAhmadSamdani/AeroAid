@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Michael Oborne")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.1.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.1+242f09232753885cedf446290472aae9dd33fc49")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.1+257cc56286385ec985be43bb15f190e1100260c0")]
 [assembly: System.Reflection.AssemblyProductAttribute("tlogThumbnailHandler")]
 [assembly: System.Reflection.AssemblyTitleAttribute("tlogThumbnailHandler")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.1.0.0")]

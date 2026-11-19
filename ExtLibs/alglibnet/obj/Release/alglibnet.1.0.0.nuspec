@@ -5,7 +5,7 @@
     <version>1.0.0</version>
     <authors>alglibnet</authors>
     <description>Package Description</description>
-    <repository type="git" commit="242f09232753885cedf446290472aae9dd33fc49" />
+    <repository type="git" commit="257cc56286385ec985be43bb15f190e1100260c0" />
     <dependencies>
       <group targetFramework=".NETStandard2.0" />
     </dependencies>
