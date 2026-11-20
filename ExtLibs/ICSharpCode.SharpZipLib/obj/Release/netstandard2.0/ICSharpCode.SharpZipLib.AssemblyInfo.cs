@@ -15,7 +15,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCopyrightAttribute("Copyright © 2000-2018 SharpZipLib Contributors")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute(@"SharpZipLib (#ziplib, formerly NZipLib) is a compression library for Zip, GZip, BZip2, and Tar written entirely in C# for .NET. It is implemented as an assembly (installable in the GAC), and thus can easily be incorporated into other projects (in any .NET language)")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.5")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+257cc56286385ec985be43bb15f190e1100260c0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c9660dc15ddf3ee13a547d86bece0e22e8cac551")]
 [assembly: System.Reflection.AssemblyProductAttribute("ICSharpCode.SharpZipLib")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ICSharpCode.SharpZipLib")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.5")]

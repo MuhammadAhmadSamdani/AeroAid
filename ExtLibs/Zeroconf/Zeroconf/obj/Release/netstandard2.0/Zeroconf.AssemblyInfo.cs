@@ -16,7 +16,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyDescriptionAttribute(("Bonjour support for .NET Standard, .NET 4.5, .NET Core, Xamarin, Windows Phone, W" +
     "indows Store/UWP"))]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+257cc56286385ec985be43bb15f190e1100260c0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c9660dc15ddf3ee13a547d86bece0e22e8cac551")]
 [assembly: System.Reflection.AssemblyProductAttribute("Zeroconf (netstandard2.0)")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Zeroconf")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

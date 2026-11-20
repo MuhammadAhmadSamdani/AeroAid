@@ -5,12 +5,19 @@ namespace MissionPlanner.AeroAid.Audio
 {
     /// <summary>
     /// Speech front end for 16 kHz 16-bit mono PCM: a 2nd-order 90 Hz high-pass filter (removes DC, desk thumps and
-    /// fan/motor rumble), an energy voice-activity detector with an adaptive noise floor, and level/clipping metering.
+    /// fan/motor rumble), an energy voice-activity detector with an adaptive noise model, and level/clipping metering.
     ///
     /// The detector cuts the continuous microphone signal into UTTERANCES: speech starts when the 20 ms frame energy
-    /// stays <see cref="StartMarginDb"/> above the noise floor for 60 ms; it ends after <see cref="HangoverMs"/> of
-    /// quieter audio. Each utterance carries <see cref="PreRollMs"/> of audio from before the start so the first
-    /// consonant ("d" of "disarm", "t" of "take off") is not cut off. Not thread-safe: feed it from one thread.
+    /// stays above the start threshold for 60 ms; it ends when the last <see cref="HangoverMs"/> were (almost all)
+    /// quiet. Each utterance carries <see cref="PreRollMs"/> of audio from before the start so the first consonant
+    /// ("d" of "disarm", "t" of "take off") is not cut off. Not thread-safe: feed it from one thread.
+    ///
+    /// Noise model: the median (<see cref="NoiseFloorDb"/>) and 90th percentile (<see cref="NoisePeakDb"/>) of the
+    /// last 3 s of background frames. Thresholds sit above the background's OWN fluctuation, not just above its
+    /// level. The previous detector tracked the minimum of the background and required every frame of the
+    /// hang-over to be below floor+5 dB; with a real laptop microphone array (frame level fluctuating by 3 dB or
+    /// more) that never happened, so every utterance ran to the 6 s limit, collected seconds of noise, and correct
+    /// commands were rejected as "INCOMPLETE" (see VoiceRealNoiseTests).
     /// </summary>
     public sealed class VoiceActivityDetector
     {
@@ -18,11 +25,23 @@ namespace MissionPlanner.AeroAid.Audio
         public const int FrameSamples = 320; // 20 ms
         public const int FrameMs = 20;
 
-        /// <summary>Speech must be this far above the noise floor to start an utterance.</summary>
+        /// <summary>Speech must be this far above the noise median to start an utterance...</summary>
         public double StartMarginDb { get; set; } = 9;
 
-        /// <summary>...and this far above it to keep an utterance going.</summary>
+        /// <summary>...and this far above the background's 90th percentile.</summary>
+        public double StartAbovePeakDb { get; set; } = 4;
+
+        /// <summary>A frame counts as speech (keeps an utterance going) this far above the noise median...</summary>
         public double ContinueMarginDb { get; set; } = 5;
+
+        /// <summary>...and this far above the background's 90th percentile.</summary>
+        public double ContinueAbovePeakDb { get; set; } = 1.5;
+
+        /// <summary>
+        /// An utterance ends when at most this fraction of the frames in the last <see cref="HangoverMs"/> were
+        /// speech frames (isolated background peaks do not keep it open).
+        /// </summary>
+        public double EndSpeechFraction { get; set; } = 0.12;
 
         /// <summary>Absolute minimum level for speech (very quiet rooms).</summary>
         public double MinSpeechDb { get; set; } = -58;
@@ -37,15 +56,36 @@ namespace MissionPlanner.AeroAid.Audio
         public int MinSpeechMs { get; set; } = 120;
 
         /// <summary>An utterance is closed after this long even if the speech continues (background talk).</summary>
-        public int MaxUtteranceMs { get; set; } = 6000;
+        public int MaxUtteranceMs { get; set; } = 5000;
 
         public bool InSpeech { get; private set; }
 
         /// <summary>Energy of the last frame, dBFS.</summary>
         public double FrameDb { get; private set; } = -100;
 
-        /// <summary>Estimated background noise level, dBFS.</summary>
+        /// <summary>Estimated background noise level (median of recent background frames), dBFS.</summary>
         public double NoiseFloorDb { get; private set; } = -60;
+
+        /// <summary>90th percentile of recent background frames, dBFS (how high the background fluctuates).</summary>
+        public double NoisePeakDb { get; private set; } = -60;
+
+        /// <summary>Level a frame must exceed to count as speech, dBFS.</summary>
+        public double SpeechThresholdDb => Math.Max(NoiseFloorDb + ContinueMarginDb, NoisePeakDb + ContinueAbovePeakDb);
+
+        private double StartThresholdDb => Math.Max(Math.Max(NoiseFloorDb + StartMarginDb, NoisePeakDb + StartAbovePeakDb), MinSpeechDb);
+
+        /// <summary>True if the last utterance was cut at <see cref="MaxUtteranceMs"/> rather than ending in silence.</summary>
+        public bool LastEndedByLength { get; private set; }
+
+        /// <summary>Length of the last utterance including pre-roll, ms.</summary>
+        public int LastUtteranceMs { get; private set; }
+
+        private const int NoiseWindowFrames = 150; // 3 s
+        private readonly double[] noiseWindow = new double[NoiseWindowFrames];
+        private readonly double[] noiseSorted = new double[NoiseWindowFrames];
+        private int noiseCount, noiseNext;
+        private bool[] recentSpeech = new bool[0];
+        private int recentNext, recentSpeechCount, recentFilled;
 
         /// <summary>Mean level of the last utterance's speech frames, dBFS (-100 before the first utterance).</summary>
         public double LastSpeechDb { get; private set; } = -100;
@@ -144,29 +184,34 @@ namespace MissionPlanner.AeroAid.Audio
 
             if (!floorInitialised)
             {
-                NoiseFloorDb = Math.Max(db, -90);
+                NoiseFloorDb = NoisePeakDb = Math.Max(db, -90);
                 floorInitialised = true;
             }
 
             if (!InSpeech)
             {
-                // noise floor: follows quieter audio quickly, louder audio slowly (~4 s per 10 dB)
-                if (db < NoiseFloorDb) NoiseFloorDb += (db - NoiseFloorDb) * 0.2;
-                else NoiseFloorDb += Math.Min(db - NoiseFloorDb, 10) * 0.005;
-                NoiseFloorDb = Math.Max(NoiseFloorDb, -90);
+                // the start decision uses the noise model from BEFORE this frame (a speech onset must not raise it)
+                var start = StartThresholdDb;
+                AddNoiseFrame(db);
 
                 preRoll.Enqueue((bytes, db));
                 while (preRoll.Count > PreRollMs / FrameMs) preRoll.Dequeue();
 
-                if (db > NoiseFloorDb + StartMarginDb && db > MinSpeechDb)
+                if (db > start)
                     aboveCount++;
                 else
                     aboveCount = 0;
 
                 if (aboveCount >= 3)
                 {
+                    // the onset frames are speech, not background
+                    RemoveLastNoiseFrames(3);
                     InSpeech = true;
                     belowMs = 0;
+                    var window = Math.Max(1, HangoverMs / FrameMs);
+                    if (recentSpeech.Length != window) recentSpeech = new bool[window];
+                    Array.Clear(recentSpeech, 0, recentSpeech.Length);
+                    recentNext = recentSpeechCount = recentFilled = 0;
                     speechMs = aboveCount * FrameMs;
                     uttMs = 0;
                     speechEnergySum = 0;
@@ -197,7 +242,8 @@ namespace MissionPlanner.AeroAid.Audio
             clipped += frameClipped;
             if (framePeak > peak) peak = framePeak;
             UtteranceAudio?.Invoke(bytes);
-            if (db > NoiseFloorDb + ContinueMarginDb && db > MinSpeechDb - 4)
+            var isSpeech = db > SpeechThresholdDb && db > MinSpeechDb - 4;
+            if (isSpeech)
             {
                 belowMs = 0;
                 speechMs += FrameMs;
@@ -209,14 +255,70 @@ namespace MissionPlanner.AeroAid.Audio
                 belowMs += FrameMs;
             }
 
-            if (belowMs >= HangoverMs || uttMs >= MaxUtteranceMs)
+            // hang-over window: the utterance ends when (almost) all of the last HangoverMs were quiet. A strict
+            // "every frame quiet" rule never fires when the background fluctuates (laptop microphone arrays).
+            if (recentFilled == recentSpeech.Length && recentSpeech[recentNext]) recentSpeechCount--;
+            recentSpeech[recentNext] = isSpeech;
+            if (isSpeech) recentSpeechCount++;
+            recentNext = (recentNext + 1) % recentSpeech.Length;
+            if (recentFilled < recentSpeech.Length) recentFilled++;
+            var quiet = belowMs >= HangoverMs ||
+                        (recentFilled == recentSpeech.Length && !isSpeech &&
+                         recentSpeechCount <= Math.Max(1, (int)(EndSpeechFraction * recentSpeech.Length)));
+
+            if (quiet)
+            {
                 End(speechMs >= MinSpeechMs);
+            }
+            else if (uttMs >= MaxUtteranceMs)
+            {
+                // continuous "speech" for the maximum length: most likely a new, louder background (a fan was
+                // switched on, people talking). Learn it as background so the detector does not re-trigger forever.
+                foreach (var f in utteranceDb) AddNoiseFrame(f);
+                End(speechMs >= MinSpeechMs, true);
+            }
         }
 
-        private void End(bool valid)
+        private void AddNoiseFrame(double db)
+        {
+            noiseWindow[noiseNext] = Math.Max(db, -90);
+            noiseNext = (noiseNext + 1) % NoiseWindowFrames;
+            if (noiseCount < NoiseWindowFrames) noiseCount++;
+            Array.Copy(noiseWindow, noiseSorted, noiseCount);
+            Array.Sort(noiseSorted, 0, noiseCount);
+            NoiseFloorDb = noiseSorted[noiseCount / 2];
+            NoisePeakDb = noiseSorted[Math.Min(noiseCount - 1, noiseCount * 9 / 10)];
+        }
+
+        private void RemoveLastNoiseFrames(int n)
+        {
+            n = Math.Min(n, noiseCount - 1); // keep at least one frame
+            for (var i = 0; i < n; i++)
+            {
+                noiseNext = (noiseNext - 1 + NoiseWindowFrames) % NoiseWindowFrames;
+                noiseCount--;
+            }
+
+            // the remaining frames are the most recent noiseCount entries ending before noiseNext; when the window
+            // has wrapped they are not contiguous from 0, so rebuild a contiguous copy
+            var tmp = new double[noiseCount];
+            for (var i = 0; i < noiseCount; i++)
+                tmp[i] = noiseWindow[(noiseNext - noiseCount + i + 2 * NoiseWindowFrames) % NoiseWindowFrames];
+            Array.Copy(tmp, noiseWindow, noiseCount);
+            noiseNext = noiseCount % NoiseWindowFrames;
+            if (noiseCount == 0) return;
+            Array.Copy(noiseWindow, noiseSorted, noiseCount);
+            Array.Sort(noiseSorted, 0, noiseCount);
+            NoiseFloorDb = noiseSorted[noiseCount / 2];
+            NoisePeakDb = noiseSorted[Math.Min(noiseCount - 1, noiseCount * 9 / 10)];
+        }
+
+        private void End(bool valid, bool byLength = false)
         {
             InSpeech = false;
             aboveCount = 0;
+            LastEndedByLength = byLength;
+            LastUtteranceMs = uttMs;
             if (speechFrames > 0)
                 LastSpeechDb = 10 * Math.Log10(speechEnergySum / speechFrames + 1e-12);
             LastPeakDb = peak > 0 ? 20 * Math.Log10(peak / 32768.0) : -100;

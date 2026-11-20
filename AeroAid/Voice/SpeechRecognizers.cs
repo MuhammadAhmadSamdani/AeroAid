@@ -195,6 +195,10 @@ namespace MissionPlanner.AeroAid.Voice
             var dir = AppDomain.CurrentDomain.BaseDirectory;
             if (!File.Exists(Path.Combine(dir, "libvosk.dll")))
                 return "libvosk.dll is missing next to the application.";
+            var conflict = VoskNativeRuntime.FindConflict();
+            if (conflict != null)
+                return "another component (usually GStreamer video) loaded an incompatible " + conflict +
+                       " before the speech engine; starting Vosk now could crash the application. Restart AeroAid.";
             return null;
         }
 
@@ -230,7 +234,7 @@ namespace MissionPlanner.AeroAid.Voice
             if (why != null)
                 throw new InvalidOperationException(why);
             var m = LoadModel(path);
-            var grammar = VoiceGrammar.ToJson(phrases ?? VoiceGrammar.Phrases());
+            var grammar = VoiceGrammar.ToJson(phrases ?? VoiceGrammar.Phrases(true, VoiceSettings.WakePhrase));
             var r = new Vosk.VoskRecognizer(m, VoiceActivityDetectorRate, grammar);
             r.SetWords(true);
             return new VoskCommandRecognizer(r, "Vosk offline - command vocabulary (" + Path.GetFileName(path) + ")");
@@ -355,12 +359,17 @@ namespace MissionPlanner.AeroAid.Voice
         /// <summary>Command grammar = context{0,5} PHRASE context{0,5}; decoy grammar = 1-4 decoy words.</summary>
         public static Grammar[] BuildGrammars(CultureInfo culture)
         {
-            var context = VoiceCommandParser.GrammarFillers.Where(w => w != "r").ToArray();
+            // context = polite / negation / question words, the wake word ("aero aid") and spoken altitudes
+            var wake = VoiceCommandParser.Tokens(VoiceCommandParser.Normalize(VoiceParseOptions.DefaultWakePhrase));
+            var context = VoiceCommandParser.GrammarFillers.Concat(wake).Concat(VoiceGrammar.AltitudeWords)
+                .Where(w => w != "r").Distinct().ToArray();
             var filler = new GrammarBuilder(new Choices(context)) { Culture = culture };
             var gb = new GrammarBuilder { Culture = culture };
             gb.Append(filler, 0, 5);
             gb.Append(new GrammarBuilder(new Choices(VoiceCommandParser.GrammarKeywords)) { Culture = culture });
-            gb.Append(filler, 0, 5);
+            // separate builder instance: System.Speech's optimiser throws when one instance is appended twice with
+            // different repeat counts. Up to 6 words after the command: "take off to twenty five meters now".
+            gb.Append(new GrammarBuilder(new Choices(context)) { Culture = culture }, 0, 6);
             var phraseTokens = VoiceCommandParser.Phrases.SelectMany(p => p.Tokens).ToList();
             var decoys = VoiceGrammar.Decoys.Where(d => !d.Split(' ').Any(phraseTokens.Contains) && !context.Contains(d)).ToArray();
             var dg = new GrammarBuilder { Culture = culture };

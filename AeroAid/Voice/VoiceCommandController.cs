@@ -277,7 +277,8 @@ namespace MissionPlanner.AeroAid.Voice
 
                 var t = backend.Capture();
                 var passed = new List<string>();
-                var failures = VoiceSafety.Check(cmd, t, passed);
+                var spokenAlt = cmd == VoiceCommand.Takeoff ? u.Match.Altitude : null;
+                var failures = VoiceSafety.Check(cmd, t, passed, spokenAlt);
                 if (!t.HasHeartbeat)
                 {
                     Set(VoiceExecState.NotConnected, name + " not sent: " + string.Join(" ", failures));
@@ -316,7 +317,7 @@ namespace MissionPlanner.AeroAid.Voice
 
                 // ---- the state may have changed while the dialog was open: validate again
                 var t2 = backend.Capture();
-                var failures2 = VoiceSafety.Check(cmd, t2, new List<string>());
+                var failures2 = VoiceSafety.Check(cmd, t2, new List<string>(), spokenAlt);
                 if (!t2.HasHeartbeat)
                 {
                     Set(VoiceExecState.NotConnected, name + " not sent: link lost while the dialog was open.");
@@ -343,7 +344,7 @@ namespace MissionPlanner.AeroAid.Voice
                         await Finish(await backend.Disarm(), "Vehicle DISARMED (confirmed by ACK and heartbeat).", "Vehicle refused to DISARM.");
                         break;
                     case VoiceCommand.Takeoff:
-                        await RunTakeoff();
+                        await RunTakeoff(spokenAlt);
                         break;
                     case VoiceCommand.Stop:
                         await Finish(await backend.Stop(), "Vehicle STOPPED (BRAKE / hold position, confirmed by heartbeat).", "Vehicle did not switch to BRAKE / hold.");
@@ -410,9 +411,9 @@ namespace MissionPlanner.AeroAid.Voice
             Set(VoiceExecState.Rejected, failText + (string.IsNullOrEmpty(why) ? "" : " Vehicle says: " + why));
         }
 
-        private async Task RunTakeoff()
+        private async Task RunTakeoff(double? spokenAlt)
         {
-            var alt = VoiceSafety.TakeoffAltitude();
+            var alt = VoiceSafety.TakeoffAltitude(spokenAlt);
             if (!backend.Capture().Armed)
             {
                 Set(VoiceExecState.Rejected, "The vehicle disarmed before takeoff (ArduCopter auto-disarm). Arm again, then say \"take off\".");
@@ -466,7 +467,8 @@ namespace MissionPlanner.AeroAid.Voice
 
         private static string ConfirmText(VoiceCommand cmd, VoiceUtterance u, TelemetrySnapshot t, List<string> passed)
         {
-            var head = $"Voice command heard: \"{u.Text}\"  ({u.Confidence:P0})\nDetected: {VoiceCommandParser.Name(cmd)}\n\n" +
+            var head = $"Voice command heard: \"{u.Text}\"  (recogniser confidence {u.Confidence:P0})\nDetected: {VoiceCommandParser.Name(cmd)}" +
+                       (u.Match.HasPrefix ? "  (wake word heard)" : "") + "\n\n" +
                        "Checks passed:\n✓ " + string.Join("\n✓ ", passed) + "\n\n";
             switch (cmd)
             {
@@ -477,7 +479,8 @@ namespace MissionPlanner.AeroAid.Voice
                 case VoiceCommand.Disarm:
                     return head + "DISARM the motors now?\n\nThe vehicle is on the ground. Propellers will stop.";
                 case VoiceCommand.Takeoff:
-                    return head + $"TAKE OFF to {VoiceSafety.TakeoffAltitude():0.#} m in GUIDED mode?\n\n" +
+                    return head + $"TAKE OFF to {VoiceSafety.TakeoffAltitude(u.Match.Altitude):0.#} m in GUIDED mode?" +
+                           (u.Match.Altitude.HasValue ? "  (altitude as spoken)" : "  (configured default altitude)") + "\n\n" +
                            "Make sure the area above the vehicle is clear.";
                 case VoiceCommand.Stop:
                     return head + "STOP the vehicle now (BRAKE mode, or hold position)?";

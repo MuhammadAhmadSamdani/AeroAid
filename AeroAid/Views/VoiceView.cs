@@ -138,13 +138,14 @@ namespace MissionPlanner.AeroAid.Views
             rec.Controls.Add(rf);
 
             // ---------------- command detection & validation
-            var det = new AeroCard { Title = "Command detection & validation", Glyph = AeroIcons.Check, Width = CardW, Height = 370 };
+            var det = new AeroCard { Title = "Command detection & validation", Glyph = AeroIcons.Check, Width = CardW, Height = 420 };
             var df = Column(p);
             confText.MaximumSize = new Size(InnerW, 0);
             validation.MaximumSize = new Size(InnerW, 0);
             var help = AeroDraw.Caption(
-                "ARM \"arm the drone\" • DISARM \"disarm the drone\" • TAKEOFF \"take off\" • STOP \"stop\" • " +
-                "HOLD \"hold position\" • RTL \"return to launch\" • LAND \"land\". \"Drone ...\" and \"please ...\" are fine.\n" +
+                "ARM \"arm the drone\" • DISARM \"disarm the drone\" • TAKEOFF \"take off\" / \"take off to five meters\" • " +
+                "STOP \"stop\" • HOLD \"hold position\" • RTL \"return to launch\" • LAND \"land\". \"AeroAid ...\", " +
+                "\"drone ...\" and \"please ...\" are fine (wake-word rules: Settings › Voice).\n" +
                 "Rejected: negations (\"do not arm\"), two commands (\"disarm and arm\"), questions, other sentences " +
                 "(\"my arm hurts\"), low confidence - you are asked to repeat.", 8.5f);
             help.MaximumSize = new Size(InnerW, 0);
@@ -158,7 +159,7 @@ namespace MissionPlanner.AeroAid.Views
             det.Controls.Add(df);
 
             // ---------------- execution
-            var exe = new AeroCard { Title = "Execution", Glyph = AeroIcons.Power, Width = CardW, Height = 370 };
+            var exe = new AeroCard { Title = "Execution", Glyph = AeroIcons.Power, Width = CardW, Height = 420 };
             var ef = Column(p);
             execInfo.MaximumSize = new Size(InnerW, 0);
             testBanner.MaximumSize = new Size(InnerW, 0);
@@ -665,11 +666,24 @@ namespace MissionPlanner.AeroAid.Views
                     lvl = m.IsCommand ? StatusLevel.Ok : m.Outcome == VoiceMatchOutcome.NoCommand ? StatusLevel.Unavailable : StatusLevel.Warning;
                 }
 
+                if (m.Altitude.HasValue && (m.IsCommand || m.Outcome == VoiceMatchOutcome.PrefixMissing))
+                    headline += $" - {m.Altitude:0.#} m";
                 detectTile.SetValue(headline, lvl);
+                // the recogniser's own per-word posterior (Vosk) / sentence confidence (Windows) - not an estimate of ours
                 confMeter.Value = u.Confidence;
                 confMeter.BarColor = u.ConfidenceOk ? p.StatusOk : p.StatusCritical;
-                SetText(confText, $"{u.Confidence:P0} - minimum {VoiceSettings.MinConfidence:P0}" + (u.ConfidenceOk ? "" : " (too low)"));
-                SetText(validation, u.Decision + $"\nNormalised: \"{m.Normalized}\"");
+                SetText(confText, $"{u.Confidence:P0} (reported by the recogniser) - minimum {VoiceSettings.MinConfidence:P0}" +
+                                  (u.ConfidenceOk ? "" : " (too low)"));
+                var wake = VoiceSettings.ParseOptions;
+                var wakeText = wake.WakeTokens.Length == 0
+                    ? "no wake word configured"
+                    : (m.HasPrefix ? "wake word heard" : "no wake word") + (wake.Mode == VoicePrefixMode.Optional ? " (optional)"
+                        : wake.Mode == VoicePrefixMode.Critical ? " (required for ARM / DISARM / TAKEOFF)" : " (required for all commands)");
+                var altText = m.Command == VoiceCommand.Takeoff
+                    ? (m.Altitude.HasValue ? $" • altitude {m.Altitude:0.#} m (spoken)" : $" • altitude {VoiceSafety.TakeoffAltitude():0.#} m (default)")
+                    : "";
+                SetText(validation, u.Decision + $"\nNormalised: \"{m.Normalized}\"\n{char.ToUpper(wakeText[0])}{wakeText.Substring(1)}{altText}" +
+                                    (u.UtteranceMs > 0 ? $"\nUtterance {u.UtteranceMs / 1000:0.0} s • recognised {u.DecodeMs:0} ms after it ended" : ""));
                 validation.ForeColor = u.Actionable ? p.StatusOk : m.Outcome == VoiceMatchOutcome.NoCommand ? p.Muted : p.StatusWarn;
             }
             else if (u == null)

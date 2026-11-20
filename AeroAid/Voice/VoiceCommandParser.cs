@@ -39,14 +39,52 @@ namespace MissionPlanner.AeroAid.Voice
         /// A command word inside a sentence that is not a command ("my arm hurts"), or too long - never executed;
         /// the operator is asked to repeat.
         /// </summary>
-        TooLong
+        TooLong,
+        /// <summary>A well-formed command without the required wake word ("AeroAid") - never executed.</summary>
+        PrefixMissing
+    }
+
+    /// <summary>When the wake word ("AeroAid") must precede a command.</summary>
+    public enum VoicePrefixMode
+    {
+        /// <summary>Accepted and stripped when spoken, never required.</summary>
+        Optional,
+        /// <summary>Required for ARM, DISARM and TAKEOFF; optional for STOP / HOLD / RTL / LAND.</summary>
+        Critical,
+        /// <summary>Required for every command.</summary>
+        All
+    }
+
+    /// <summary>Settings-dependent parser options (the parser itself stays a pure function).</summary>
+    public sealed class VoiceParseOptions
+    {
+        public const string DefaultWakePhrase = "aero aid";
+
+        public VoiceParseOptions(string wakePhrase = DefaultWakePhrase, VoicePrefixMode mode = VoicePrefixMode.Optional)
+        {
+            var n = VoiceCommandParser.Normalize(wakePhrase);
+            WakeTokens = string.IsNullOrEmpty(n) ? Array.Empty<string>() : n.Split(' ');
+            Mode = WakeTokens.Length == 0 ? VoicePrefixMode.Optional : mode;
+        }
+
+        /// <summary>Normalised wake-word tokens, e.g. ["aero", "aid"]; empty = no wake word.</summary>
+        public string[] WakeTokens { get; }
+
+        public VoicePrefixMode Mode { get; }
+
+        public static readonly VoiceParseOptions Default = new VoiceParseOptions();
+
+        /// <summary>True if <paramref name="c"/> needs the wake word in this mode.</summary>
+        public bool Requires(VoiceCommand c) =>
+            Mode == VoicePrefixMode.All ||
+            (Mode == VoicePrefixMode.Critical && (c == VoiceCommand.Arm || c == VoiceCommand.Disarm || c == VoiceCommand.Takeoff));
     }
 
     /// <summary>Result of classifying one recognised sentence. Immutable.</summary>
     public sealed class VoiceMatch
     {
         public VoiceMatch(VoiceMatchOutcome outcome, VoiceCommand command, string normalized, string keyword,
-            string reason, IReadOnlyList<VoiceCommand> found)
+            string reason, IReadOnlyList<VoiceCommand> found, bool hasPrefix = false, double? altitude = null)
         {
             Outcome = outcome;
             Command = outcome == VoiceMatchOutcome.Command ? command : VoiceCommand.None;
@@ -54,7 +92,15 @@ namespace MissionPlanner.AeroAid.Voice
             Keyword = keyword ?? "";
             Reason = reason ?? "";
             Found = found ?? Array.Empty<VoiceCommand>();
+            HasPrefix = hasPrefix;
+            Altitude = altitude;
         }
+
+        /// <summary>The sentence started with the wake word ("AeroAid ...").</summary>
+        public bool HasPrefix { get; }
+
+        /// <summary>Takeoff altitude spoken with a TAKEOFF command ("take off five meters"), metres; null = not spoken.</summary>
+        public double? Altitude { get; }
 
         public VoiceMatchOutcome Outcome { get; }
 
@@ -85,6 +131,7 @@ namespace MissionPlanner.AeroAid.Voice
                     case VoiceMatchOutcome.Ambiguous: return "AMBIGUOUS - NO ACTION";
                     case VoiceMatchOutcome.Question: return "QUESTION - NO ACTION";
                     case VoiceMatchOutcome.TooLong: return "UNCLEAR - PLEASE REPEAT";
+                    case VoiceMatchOutcome.PrefixMissing: return "WAKE WORD MISSING - NO ACTION";
                     default: return "NO COMMAND DETECTED";
                 }
             }
@@ -187,6 +234,27 @@ namespace MissionPlanner.AeroAid.Voice
         {
             "drone", "hey", "ok", "okay", "so", "um", "uh", "er", "and", "well"
         };
+
+        /// <summary>Number words for a spoken takeoff altitude (1..99 m).</summary>
+        public static readonly Dictionary<string, int> NumberUnits = new Dictionary<string, int>
+        {
+            { "one", 1 }, { "two", 2 }, { "three", 3 }, { "four", 4 }, { "five", 5 }, { "six", 6 }, { "seven", 7 },
+            { "eight", 8 }, { "nine", 9 }, { "ten", 10 }, { "eleven", 11 }, { "twelve", 12 }, { "thirteen", 13 },
+            { "fourteen", 14 }, { "fifteen", 15 }, { "sixteen", 16 }, { "seventeen", 17 }, { "eighteen", 18 },
+            { "nineteen", 19 }
+        };
+
+        public static readonly Dictionary<string, int> NumberTens = new Dictionary<string, int>
+        {
+            { "twenty", 20 }, { "thirty", 30 }, { "forty", 40 }, { "fifty", 50 }, { "sixty", 60 }, { "seventy", 70 },
+            { "eighty", 80 }, { "ninety", 90 }
+        };
+
+        /// <summary>Unit words accepted after a takeoff altitude.</summary>
+        public static readonly string[] AltitudeUnits = { "meters", "metres", "meter", "metre", "m" };
+
+        /// <summary>Words allowed between "take off" and the altitude ("take off TO five meters").</summary>
+        public static readonly string[] AltitudeLinkWords = { "to", "at" };
 
         /// <summary>Every word the speech recognisers need: command phrases, lead / tail words and negations.</summary>
         public static IEnumerable<string> Vocabulary =>
@@ -363,56 +431,149 @@ namespace MissionPlanner.AeroAid.Voice
             return found;
         }
 
-        /// <summary>Classifies recognised text into at most one command (see class remarks).</summary>
-        public static VoiceMatch Parse(string text)
+        /// <summary>
+        /// Reads a takeoff altitude at <paramref name="i"/>: [to|at] NUMBER [meters]. NUMBER is a digit string or
+        /// "five", "fifteen", "twenty", "twenty five" (1..99). Returns false (and leaves <paramref name="end"/> = i)
+        /// when there is no number there; a link word or unit without a valid number is NOT consumed, so the sentence
+        /// grammar then rejects it as unclear rather than guessing.
+        /// </summary>
+        public static bool TryReadAltitude(string[] tokens, int i, out double altitude, out int end)
         {
+            altitude = 0;
+            end = i;
+            var p = i;
+            if (p < tokens.Length && AltitudeLinkWords.Contains(tokens[p])) p++;
+            if (p >= tokens.Length) return false;
+
+            int value;
+            if (int.TryParse(tokens[p], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out value))
+            {
+                p++;
+            }
+            else if (NumberTens.TryGetValue(tokens[p], out value))
+            {
+                p++;
+                if (p < tokens.Length && NumberUnits.TryGetValue(tokens[p], out var u) && u < 10)
+                {
+                    value += u;
+                    p++;
+                }
+            }
+            else if (NumberUnits.TryGetValue(tokens[p], out value))
+            {
+                p++;
+            }
+            else
+            {
+                return false;
+            }
+
+            // "two five meters": two numbers in a row is not a number we understand
+            if (p < tokens.Length && (NumberUnits.ContainsKey(tokens[p]) || NumberTens.ContainsKey(tokens[p]) || tokens[p].All(char.IsDigit)))
+                return false;
+            if (value < 1 || value > 99) return false;
+            if (p < tokens.Length && AltitudeUnits.Contains(tokens[p])) p++;
+            altitude = value;
+            end = p;
+            return true;
+        }
+
+        /// <summary>Address words that may precede the wake word ("hey AeroAid ...").</summary>
+        private static readonly HashSet<string> PreWakeWords = new HashSet<string> { "hey", "ok", "okay", "so", "um", "uh", "er" };
+
+        /// <summary>Removes a leading wake word ("hey AeroAid, arm" → "arm"); true if one was found.</summary>
+        public static string[] StripWakeWord(string[] tokens, VoiceParseOptions options, out bool found)
+        {
+            found = false;
+            var wake = options?.WakeTokens ?? Array.Empty<string>();
+            if (wake.Length == 0) return tokens;
+            var p = 0;
+            while (p < tokens.Length && PreWakeWords.Contains(tokens[p])) p++;
+            int len;
+            if (p + wake.Length <= tokens.Length && !wake.Where((w, k) => tokens[p + k] != w).Any())
+                len = wake.Length;
+            else if (wake.Length > 1 && p < tokens.Length && tokens[p] == string.Concat(wake))
+                len = 1; // "aeroaid" written as one word
+            else
+                return tokens;
+            found = true;
+            return tokens.Take(p).Concat(tokens.Skip(p + len)).ToArray();
+        }
+
+        /// <summary>Classifies recognised text into at most one command (default options: wake word optional).</summary>
+        public static VoiceMatch Parse(string text) => Parse(text, VoiceParseOptions.Default);
+
+        /// <summary>Classifies recognised text into at most one command (see class remarks).</summary>
+        public static VoiceMatch Parse(string text, VoiceParseOptions options)
+        {
+            options = options ?? VoiceParseOptions.Default;
             var normalized = Normalize(text);
-            var tokens = Tokens(normalized);
+            var tokens = StripWakeWord(Tokens(normalized), options, out var hasPrefix);
             if (tokens.Length == 0)
-                return new VoiceMatch(VoiceMatchOutcome.NoCommand, VoiceCommand.None, normalized, "", "nothing recognised", null);
+                return new VoiceMatch(VoiceMatchOutcome.NoCommand, VoiceCommand.None, normalized, "",
+                    hasPrefix ? "only the wake word was heard" : "nothing recognised", null, hasPrefix);
 
             var hits = FindPhrases(tokens);
             var distinct = hits.Select(h => h.phrase.Command).Distinct().ToList();
             if (distinct.Count == 0)
-                return new VoiceMatch(VoiceMatchOutcome.NoCommand, VoiceCommand.None, normalized, "", "no command phrase", distinct);
+                return new VoiceMatch(VoiceMatchOutcome.NoCommand, VoiceCommand.None, normalized, "", "no command phrase", distinct, hasPrefix);
 
             var first = hits[0];
             var keyword = first.phrase.Text;
 
             if (distinct.Count > 1)
                 return new VoiceMatch(VoiceMatchOutcome.Ambiguous, VoiceCommand.None, normalized, keyword,
-                    "conflicting commands: " + string.Join(" + ", distinct.Select(Name)) + " - say one command at a time", distinct);
+                    "conflicting commands: " + string.Join(" + ", distinct.Select(Name)) + " - say one command at a time", distinct, hasPrefix);
 
             var negation = tokens.FirstOrDefault(NegationWords.Contains);
             if (negation != null)
                 return new VoiceMatch(VoiceMatchOutcome.Negated, VoiceCommand.None, normalized, keyword,
-                    "negation \"" + negation + "\" in the sentence", distinct);
+                    "negation \"" + negation + "\" in the sentence", distinct, hasPrefix);
 
             var lead = tokens.SkipWhile(AddressWords.Contains).FirstOrDefault();
             if (lead != null && QuestionWords.Contains(lead))
                 return new VoiceMatch(VoiceMatchOutcome.Question, VoiceCommand.None, normalized, keyword,
-                    "sounds like a question (\"" + lead + " ...\")", distinct);
+                    "sounds like a question (\"" + lead + " ...\")", distinct, hasPrefix);
 
             if (tokens.Length > MaxWords)
                 return new VoiceMatch(VoiceMatchOutcome.TooLong, VoiceCommand.None, normalized, keyword,
-                    $"{tokens.Length} words - say a short command", distinct);
+                    $"{tokens.Length} words - say a short command", distinct, hasPrefix);
 
-            // the same command said twice ("arm, arm the drone") is one command
-            if (hits.Count > 1)
-                return new VoiceMatch(VoiceMatchOutcome.TooLong, VoiceCommand.None, normalized, keyword,
-                    "command repeated in one sentence - say it once", distinct);
-
-            // sentence := LEAD* PHRASE TAIL*
+            // the SAME phrase said twice in a row ("arm arm", "take off take off" - typically the operator repeating
+            // a command that seemed not to be heard) is one command. Repeats separated by other words are unclear.
             var start = first.start;
             var end = start + first.phrase.Tokens.Length;
+            for (var k = 1; k < hits.Count; k++)
+            {
+                if (hits[k].start != end || hits[k].phrase != first.phrase)
+                    return new VoiceMatch(VoiceMatchOutcome.TooLong, VoiceCommand.None, normalized, keyword,
+                        "command repeated in one sentence - say it once", distinct, hasPrefix);
+                end = hits[k].start + hits[k].phrase.Tokens.Length;
+            }
+
+            // "take off [to] five [meters]"
+            double? altitude = null;
+            if (first.phrase.Command == VoiceCommand.Takeoff && TryReadAltitude(tokens, end, out var alt, out var altEnd))
+            {
+                altitude = alt;
+                end = altEnd;
+            }
+
+            // sentence := LEAD* PHRASE [ALTITUDE] TAIL*
             var badLead = tokens.Take(start).FirstOrDefault(w => !LeadWords.Contains(w));
             var badTail = tokens.Skip(end).FirstOrDefault(w => !TailWords.Contains(w));
             if (badLead != null || badTail != null)
                 return new VoiceMatch(VoiceMatchOutcome.TooLong, VoiceCommand.None, normalized, keyword,
-                    $"\"{keyword}\" is not used as a command here (unexpected word \"{badLead ?? badTail}\") - please repeat", distinct);
+                    $"\"{keyword}\" is not used as a command here (unexpected word \"{badLead ?? badTail}\") - please repeat", distinct, hasPrefix);
+
+            if (!hasPrefix && options.Requires(first.phrase.Command))
+                return new VoiceMatch(VoiceMatchOutcome.PrefixMissing, VoiceCommand.None, normalized, keyword,
+                    $"{Name(first.phrase.Command)} needs the wake word - say \"{string.Join(" ", options.WakeTokens)} {keyword}\"",
+                    distinct, false, altitude);
 
             return new VoiceMatch(VoiceMatchOutcome.Command, first.phrase.Command, normalized, keyword,
-                "phrase \"" + keyword + "\"", distinct);
+                "phrase \"" + keyword + "\"" + (altitude.HasValue ? $", altitude {altitude:0.#} m" : "") + (hasPrefix ? ", wake word" : ""),
+                distinct, hasPrefix, altitude);
         }
     }
 }

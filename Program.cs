@@ -92,6 +92,11 @@ namespace MissionPlanner
         [STAThread]
         public static void Main(string[] args)
         {
+#if !LIB
+            // AeroAid voice: load the offline recogniser's MinGW runtime before anything can load GStreamer's
+            // same-named, incompatible copies (see VoskNativeRuntime) - otherwise voice can crash the application.
+            MissionPlanner.AeroAid.Voice.VoskNativeRuntime.Preload();
+#endif
             Start(args);
         }
 

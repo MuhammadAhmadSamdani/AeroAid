@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("alglibnet")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+257cc56286385ec985be43bb15f190e1100260c0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c9660dc15ddf3ee13a547d86bece0e22e8cac551")]
 [assembly: System.Reflection.AssemblyProductAttribute("alglibnet")]
 [assembly: System.Reflection.AssemblyTitleAttribute("alglibnet")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

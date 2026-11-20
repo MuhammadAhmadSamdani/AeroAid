@@ -207,7 +207,7 @@ namespace MissionPlanner.AeroAid.Tests
             VoiceSettings.Enabled = true;
             VoiceSettings.MinConfidence = 0.65;
             VoiceSettings.CooldownSeconds = 5;
-            AeroSettings.TakeoffAltitude = 5;
+            AeroSettings.TakeoffAltitude = 3; // the spoken altitude (5 m) must override this default
             AeroSettings.MinSatellites = 6;
             AeroSettings.MinBatteryPercent = 30;
             using (var s = new SpeechSynthesizer())
@@ -254,8 +254,10 @@ namespace MissionPlanner.AeroAid.Tests
                 StringAssert.Contains(c.StateText, "cool-down");
 
                 // 5. TAKEOFF (must happen within ArduCopter's DISARM_DELAY, default 10 s, after arming): confirmed, ACKed, climb verified
-                Assert.AreEqual(VoiceExecState.Completed, await SayAndRun(src, heard, c, "Please initiate takeoff.", VoiceCommand.Takeoff));
-                Assert.IsTrue(WaitFor(t => t.AltRelative > 3.0, 30, "climb above 3 m"), "vehicle did not climb");
+                // spoken altitude + wake word: "Aero Aid, take off to five meters" -> MAV_CMD_NAV_TAKEOFF 5 m
+                Assert.AreEqual(VoiceExecState.Completed, await SayAndRun(src, heard, c, "Aero Aid, take off to five meters.", VoiceCommand.Takeoff));
+                StringAssert.Contains(backend.Dialogs[backend.Dialogs.Count - 1], "TAKE OFF to 5 m");
+                Assert.IsTrue(WaitFor(t => t.AltRelative > 4.0, 30, "climb above 4 m (spoken 5 m, default 3 m)"), "vehicle did not climb to the spoken altitude");
 
                 // 6. DISARM while airborne: refused, no dialog, still armed
                 confirms = backend.Confirms;

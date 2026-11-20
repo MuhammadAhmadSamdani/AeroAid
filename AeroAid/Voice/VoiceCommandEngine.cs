@@ -120,13 +120,42 @@ namespace MissionPlanner.AeroAid.Voice
             get => AeroSettings.GetBool("voice.confirm_rtl_land", true);
             set => AeroSettings.SetBool("voice.confirm_rtl_land", value);
         }
+
+        /// <summary>
+        /// Wake word spoken before a command ("AeroAid, arm the drone"). Must consist of words the speech model knows;
+        /// "aero aid" is in the Vosk English model. "" = no wake word.
+        /// </summary>
+        public static string WakePhrase
+        {
+            get => AeroSettings.GetString("voice.wake_phrase", VoiceParseOptions.DefaultWakePhrase);
+            set => AeroSettings.SetString("voice.wake_phrase", VoiceCommandParser.Normalize(value ?? ""));
+        }
+
+        /// <summary>When the wake word is required (default: optional - accepted, not required).</summary>
+        public static VoicePrefixMode RequirePrefix
+        {
+            get
+            {
+                switch (AeroSettings.GetString("voice.require_prefix", "optional"))
+                {
+                    case "critical": return VoicePrefixMode.Critical;
+                    case "all": return VoicePrefixMode.All;
+                    default: return VoicePrefixMode.Optional;
+                }
+            }
+            set => AeroSettings.SetString("voice.require_prefix",
+                value == VoicePrefixMode.Critical ? "critical" : value == VoicePrefixMode.All ? "all" : "optional");
+        }
+
+        /// <summary>Parser options from the settings above.</summary>
+        public static VoiceParseOptions ParseOptions => new VoiceParseOptions(WakePhrase, RequirePrefix);
     }
 
     /// <summary>One completed (final) recognition result and what the app decided about it. Immutable.</summary>
     public sealed class VoiceUtterance
     {
         public VoiceUtterance(long id, string text, float confidence, string source, VoiceMatch match, bool confidenceOk,
-            string decision, TimeSpan? audioPosition, bool testMode = false)
+            string decision, TimeSpan? audioPosition, bool testMode = false, double utteranceMs = 0, double decodeMs = 0)
         {
             Id = id;
             TimeUtc = DateTime.UtcNow;
@@ -138,7 +167,15 @@ namespace MissionPlanner.AeroAid.Voice
             Decision = decision ?? "";
             AudioPosition = audioPosition;
             TestMode = testMode;
+            UtteranceMs = utteranceMs;
+            DecodeMs = decodeMs;
         }
+
+        /// <summary>Length of the audio segment the detector cut for this utterance (incl. pre-roll / pause), ms.</summary>
+        public double UtteranceMs { get; }
+
+        /// <summary>Measured time from the end of the utterance to this decision (final recognition + classification), ms.</summary>
+        public double DecodeMs { get; }
 
         /// <summary>Unique per engine instance; used to execute each utterance at most once.</summary>
         public long Id { get; }
@@ -533,6 +570,7 @@ namespace MissionPlanner.AeroAid.Voice
         {
             if (mySession != session) return;
             SpeechActive = false;
+            var decodeTimer = System.Diagnostics.Stopwatch.StartNew();
             SpeechResult result;
             if (VoiceSettings.AutoGain && valid)
             {
@@ -561,19 +599,28 @@ namespace MissionPlanner.AeroAid.Voice
             PartialText = "";
             if (!valid || string.IsNullOrWhiteSpace(result.Text))
             {
+                if (valid)
+                    VoiceLog.Write($"speech detected ({vad.LastUtteranceMs} ms) but nothing was recognised" +
+                                   (SignalProblem.Length > 0 ? " - " + SignalProblem : ""));
                 RaiseStateChanged();
                 return;
             }
 
-            // floor for the completeness check: the VAD floor lags behind a noise that starts with the utterance (a fan
-            // switched on), so also use the utterance's own quiet level (20th percentile of its frames)
+            // Completeness check: clear speech not covered by any recognised word means words were lost. "Clear
+            // speech" = above the detector's speech threshold (above the background's own fluctuation, not just its
+            // median) - otherwise background peaks count as lost words. The VAD model lags behind a noise that
+            // starts with the utterance (a fan switched on), so also use the utterance's own quiet level.
             var frames = vad.UtteranceFrameDb.OrderBy(x => x).ToList();
             var ownFloor = frames.Count > 0 ? frames[frames.Count / 5] : -100;
-            var uncovered = result.UncoveredSpeechMs(vad.UtteranceFrameDb, Math.Max(vad.NoiseFloorDb, ownFloor));
+            const double margin = 6;
+            var floor = Math.Max(Math.Max(vad.NoiseFloorDb, vad.SpeechThresholdDb + 1 - margin), ownFloor);
+            var uncovered = result.UncoveredSpeechMs(vad.UtteranceFrameDb, floor, margin);
             var incomplete = uncovered > VoiceSettings.MaxUncoveredSpeechMs
                 ? $"INCOMPLETE - {uncovered:0} ms of your speech was not recognised (words were lost). Please repeat."
                 : null;
-            ProcessResult(result, utteranceStart, AudioNow - utteranceStart, incomplete);
+            if (vad.LastEndedByLength)
+                VoiceLog.Write($"utterance cut at the {vad.MaxUtteranceMs} ms limit (continuous sound - background noise or talking?)");
+            ProcessResult(result, utteranceStart, AudioNow - utteranceStart, incomplete, decodeTimer.Elapsed.TotalMilliseconds);
         }
 
         private static string DescribeLevel(VoiceActivityDetector v)
@@ -649,10 +696,10 @@ namespace MissionPlanner.AeroAid.Voice
 
         /// <summary>Classifies a recogniser result (uses the confidence of the command words).</summary>
         public VoiceUtterance ProcessResult(SpeechResult r, TimeSpan? audioPosition = null, TimeSpan? duration = null,
-            string incomplete = null)
+            string incomplete = null, double decodeMs = 0)
         {
-            var match = VoiceCommandParser.Parse(r.Text);
-            return ProcessFinal(r.Text, r.ConfidenceFor(match), r.Engine, audioPosition, duration, false, incomplete);
+            var match = VoiceCommandParser.Parse(r.Text, VoiceSettings.ParseOptions);
+            return ProcessFinal(r.Text, r.ConfidenceFor(match), r.Engine, audioPosition, duration, false, incomplete, decodeMs);
         }
 
         /// <summary>
@@ -661,10 +708,12 @@ namespace MissionPlanner.AeroAid.Voice
         /// Returns null for a duplicate.
         /// </summary>
         public VoiceUtterance ProcessFinal(string text, float confidence, string sourceName, TimeSpan? audioPosition,
-            TimeSpan? duration = null, bool rejectedByRecognizer = false, string incomplete = null)
+            TimeSpan? duration = null, bool rejectedByRecognizer = false, string incomplete = null, double decodeMs = 0)
         {
+            var timer = System.Diagnostics.Stopwatch.StartNew();
             VoiceUtterance u;
             var testMode = VoiceSettings.TestMode;
+            var options = VoiceSettings.ParseOptions;
             lock (sync)
             {
                 var now = DateTime.UtcNow;
@@ -678,12 +727,12 @@ namespace MissionPlanner.AeroAid.Voice
                 lastTextUtc = now;
                 lastActivityUtc = now;
 
-                var match = VoiceCommandParser.Parse(text);
+                var match = VoiceCommandParser.Parse(text, options);
 
                 // "do not ... arm" split into two utterances by a pause: the second part is negated too
                 if (match.IsCommand && RecentNegation(audioPosition, now))
                     match = new VoiceMatch(VoiceMatchOutcome.Negated, VoiceCommand.None, match.Normalized, match.Keyword,
-                        "follows a negation spoken just before", match.Found);
+                        "follows a negation spoken just before", match.Found, match.HasPrefix, match.Altitude);
                 if (match.Found.Count == 0 && VoiceCommandParser.ContainsNegation(match.Normalized))
                 {
                     negationEndAudio = audioPosition.HasValue ? audioPosition + (duration ?? TimeSpan.Zero) : null;
@@ -702,15 +751,19 @@ namespace MissionPlanner.AeroAid.Voice
                 else if (!confOk)
                     decision = $"REJECTED: {VoiceCommandParser.Name(match.Command)}? confidence {confidence:P0} is below the {min:P0} threshold. Please repeat clearly.";
                 else
-                    decision = "ACCEPTED: " + match.Headline + (testMode ? " (test mode - not sent)" : "");
+                    decision = "ACCEPTED: " + match.Headline +
+                               (match.Altitude.HasValue ? $" ({match.Altitude:0.#} m)" : "") +
+                               (testMode ? " (test mode - not sent)" : "");
 
-                u = new VoiceUtterance(++nextId, text, confidence, sourceName, match, confOk, decision, audioPosition, testMode);
+                u = new VoiceUtterance(++nextId, text, confidence, sourceName, match, confOk, decision, audioPosition, testMode,
+                    duration?.TotalMilliseconds ?? 0, decodeMs + timer.Elapsed.TotalMilliseconds);
                 LastUtterance = u;
                 PartialText = "";
             }
 
             log.Info($"Voice heard \"{u.Text}\" ({u.Confidence:P0}, {u.Source}) -> {u.Decision}");
-            VoiceLog.Write($"heard \"{u.Text}\" conf={u.Confidence:0.00} src={u.Source} norm=\"{u.Match.Normalized}\" -> {u.Decision}");
+            VoiceLog.Write($"heard \"{u.Text}\" conf={u.Confidence:0.00} src={u.Source} norm=\"{u.Match.Normalized}\" " +
+                           $"utt={u.UtteranceMs:0}ms decode={u.DecodeMs:0}ms -> {u.Decision}");
             RaiseStateChanged();
             try
             {

@@ -109,7 +109,7 @@ namespace MissionPlanner.AeroAid.Tests
 
         private static VoiceUtterance Utterance(string text, float conf = 0.9f, long? id = null)
         {
-            var m = VoiceCommandParser.Parse(text);
+            var m = VoiceCommandParser.Parse(text, VoiceSettings.ParseOptions); // as the engine does
             return new VoiceUtterance(id ?? ++nextId, text, conf, VoiceCommandEngine.CommandGrammarName, m,
                 conf >= VoiceSettings.MinConfidence, m.Headline, null);
         }
@@ -211,6 +211,53 @@ namespace MissionPlanner.AeroAid.Tests
             Assert.AreEqual(1, b.Takeoffs);
             Assert.AreEqual(VoiceSafety.TakeoffAltitude(), b.LastTakeoffAlt, 1e-9);
             StringAssert.Contains(c.StateText, "climbing");
+        }
+
+        [TestMethod]
+        public async Task SpokenTakeoffAltitudeIsConfirmedAndSent()
+        {
+            var (c, b) = Make(VoiceWorkflowTests.ArmedOnGround());
+            Assert.AreEqual(VoiceExecState.Completed, await c.HandleAsync(Utterance("aero aid take off to five meters")));
+            Assert.AreEqual(1, b.Takeoffs);
+            Assert.AreEqual(5.0, b.LastTakeoffAlt, 1e-9);
+            // the operator sees the spoken altitude in the confirmation dialog before anything is sent
+            Assert.AreEqual(1, b.Confirms);
+            StringAssert.Contains(b.Dialogs[b.Dialogs.Count - 1], "TAKE OFF to 5 m");
+            StringAssert.Contains(b.Dialogs[b.Dialogs.Count - 1], "altitude as spoken");
+        }
+
+        [TestMethod]
+        public async Task SpokenTakeoffAltitudeAboveTheLimitIsRefusedNotClamped()
+        {
+            var (c, b) = Make(VoiceWorkflowTests.ArmedOnGround());
+            var tooHigh = (int)AeroSettings.MaxAltitude + 5;
+            if (tooHigh > 99) Assert.Inconclusive("maximum altitude above what can be spoken");
+            var words = new[] { "", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine" };
+            var tens = new[] { "", "ten", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety" };
+            var spoken = tooHigh < 20 ? null : tens[tooHigh / 10] + (tooHigh % 10 > 0 ? " " + words[tooHigh % 10] : "");
+            if (spoken == null) Assert.Inconclusive("unusual maximum altitude");
+            Assert.AreEqual(VoiceExecState.SafetyCheckFailed, await c.HandleAsync(Utterance($"take off {spoken} meters")));
+            Assert.AreEqual(0, b.Takeoffs + b.Confirms, "nothing confirmed or sent");
+            StringAssert.Contains(c.StateText, "Spoken takeoff altitude");
+        }
+
+        [TestMethod]
+        public async Task WakeWordRequiredForArmWhenConfigured()
+        {
+            var before = VoiceSettings.RequirePrefix;
+            VoiceSettings.RequirePrefix = VoicePrefixMode.Critical;
+            try
+            {
+                var (c, b) = Make(VoiceWorkflowTests.OnGround());
+                Assert.AreEqual(VoiceExecState.Ignored, await c.HandleAsync(Utterance("arm the drone")));
+                Assert.AreEqual(0, b.Confirms + b.Sent, "no dialog and nothing sent without the wake word");
+                Assert.AreEqual(VoiceExecState.Completed, await c.HandleAsync(Utterance("aero aid arm the drone")));
+                Assert.AreEqual(1, b.Arms);
+            }
+            finally
+            {
+                VoiceSettings.RequirePrefix = before;
+            }
         }
 
         [TestMethod]

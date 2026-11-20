@@ -5,7 +5,7 @@
     <version>1.0.0</version>
     <authors>netDxf</authors>
     <description>Package Description</description>
-    <repository type="git" commit="257cc56286385ec985be43bb15f190e1100260c0" />
+    <repository type="git" commit="c9660dc15ddf3ee13a547d86bece0e22e8cac551" />
     <dependencies>
       <group targetFramework=".NETStandard2.0">
         <dependency id="Font" version="0.3.0.3" exclude="Build,Analyzers" />

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MissionPlanner.Drawing")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("4.6.57.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+257cc56286385ec985be43bb15f190e1100260c0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c9660dc15ddf3ee13a547d86bece0e22e8cac551")]
 [assembly: System.Reflection.AssemblyProductAttribute("MissionPlanner.Drawing")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MissionPlanner.Drawing")]
 [assembly: System.Reflection.AssemblyVersionAttribute("4.0.0.2")]

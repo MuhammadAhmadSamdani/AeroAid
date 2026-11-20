@@ -101,7 +101,7 @@ namespace MissionPlanner.AeroAid.Tests
         [DataRow("the stop sign")]
         [DataRow("land of the free")]
         [DataRow("stop arming")]
-        [DataRow("arm arm")]
+        [DataRow("arm the drone arm")]
         [DataRow("[unk] arm")]
         [DataRow("arm [unk]")]
         [DataRow("so yesterday we went to the field and after a long time of waiting we decided to arm the drone")]

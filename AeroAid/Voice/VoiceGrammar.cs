@@ -32,11 +32,23 @@ namespace MissionPlanner.AeroAid.Voice
             "hello", "hi", "yeah", "thanks", "thank you", "sorry", "what", "where", "time", "weather", "today", "nice",
             "camera", "photo", "picture", "record", "video", "battery", "status", "speed", "altitude", "mission",
             "loiter", "guided", "auto", "brake", "follow", "me", "with", "for", "if", "you", "can", "go", "up", "down",
-            "forward", "back", "map", "zoom", "telemetry", "connect", "check", "test", "testing", "one", "two", "three"
+            "forward", "back", "map", "zoom", "telemetry", "connect", "check", "test", "testing"
         };
 
-        /// <summary>Phrase list in recogniser order: command phrases, context words, decoys, then [unk].</summary>
-        public static List<string> Phrases(bool decoys = true)
+        /// <summary>
+        /// Words for a spoken takeoff altitude: numbers 1..99 as words, units and "to" / "at".
+        /// (Numbers used to be decoys; they are vocabulary now that "take off five meters" is a command.)
+        /// </summary>
+        public static IEnumerable<string> AltitudeWords =>
+            VoiceCommandParser.NumberUnits.Keys.Concat(VoiceCommandParser.NumberTens.Keys)
+                .Concat(VoiceCommandParser.AltitudeUnits.Where(u => u.Length > 1))
+                .Concat(VoiceCommandParser.AltitudeLinkWords);
+
+        /// <summary>
+        /// Phrase list in recogniser order: wake word, command phrases, context words, altitude words, decoys, [unk].
+        /// <paramref name="wakePhrase"/> is added as one phrase ("aero aid") so the decoder sees it as a unit.
+        /// </summary>
+        public static List<string> Phrases(bool decoys = true, string wakePhrase = VoiceParseOptions.DefaultWakePhrase)
         {
             var list = new List<string>();
             void Add(string s)
@@ -44,7 +56,9 @@ namespace MissionPlanner.AeroAid.Voice
                 if (!string.IsNullOrWhiteSpace(s) && !list.Contains(s)) list.Add(s);
             }
 
+            Add(VoiceCommandParser.Normalize(wakePhrase));
             foreach (var p in VoiceCommandParser.Phrases) Add(p.Text);
+            foreach (var w in AltitudeWords) Add(w);
             foreach (var w in VoiceCommandParser.LeadWords.OrderBy(w => w)) Add(w);
             foreach (var w in VoiceCommandParser.TailWords.OrderBy(w => w)) Add(w);
             foreach (var w in VoiceCommandParser.NegationWords.Where(w => w != "dont")) Add(w);

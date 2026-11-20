@@ -10,10 +10,13 @@ namespace MissionPlanner.AeroAid.Views
     {
         private const string EngineVoskText = "Vosk offline - command vocabulary (recommended)";
         private const string EngineWindowsText = "Windows speech (System.Speech) - fallback";
+        private const string WakeOptionalText = "Optional - accepted, not required";
+        private const string WakeCriticalText = "Required for ARM / DISARM / TAKEOFF (recommended near people)";
+        private const string WakeAllText = "Required for every command";
 
         private AeroCard VoiceSection()
         {
-            var card = NewSection("Voice", AeroIcons.Mic, out var grid, 520);
+            var card = NewSection("Voice", AeroIcons.Mic, out var grid, 600);
             var enabled = AeroDraw.Check("Enable voice commands (ARM / DISARM / TAKEOFF / STOP / HOLD / RTL / LAND)", true);
             var testMode = AeroDraw.Check("Test Mode - recognise and score commands, never send them to the vehicle", true);
             var engine = AeroDraw.Combo();
@@ -27,6 +30,11 @@ namespace MissionPlanner.AeroAid.Views
             var cooldown = AeroDraw.Number(10, 5, 300, 0, 5);
             var confirmStop = AeroDraw.Check("Ask for confirmation before STOP and HOLD", false);
             var confirmRtl = AeroDraw.Check("Ask for confirmation before RTL and LAND", true);
+            var wakeWord = AeroDraw.TextBox(VoiceParseOptions.DefaultWakePhrase);
+            wakeWord.Width = 200;
+            var wakeMode = AeroDraw.Combo();
+            wakeMode.Width = 360;
+            wakeMode.Items.AddRange(new object[] { WakeOptionalText, WakeCriticalText, WakeAllText });
             AeroDraw.AddRow(grid, "Voice control", enabled);
             AeroDraw.AddRow(grid, "Test Mode", testMode);
             AeroDraw.AddRow(grid, "Speech engine", engine);
@@ -37,6 +45,8 @@ namespace MissionPlanner.AeroAid.Views
             AeroDraw.AddRow(grid, "Command cool-down", cooldown, "s before the same ARM / DISARM / TAKEOFF can be sent again");
             AeroDraw.AddRow(grid, "STOP / HOLD", confirmStop);
             AeroDraw.AddRow(grid, "RTL / LAND", confirmRtl);
+            AeroDraw.AddRow(grid, "Wake word", wakeWord, "spoken before a command, e.g. \"aero aid, arm the drone\"");
+            AeroDraw.AddRow(grid, "Wake word required", wakeMode);
             AeroDraw.AddRow(grid, "Offline model", AeroDraw.Caption(VoskModelStore.FindModel() ?? "not installed (Voice page › Download speech model)", 8.5f));
             AeroDraw.AddRow(grid, "Windows recognisers", AeroDraw.Caption(VoiceCommandEngine.RecognizerInfo(), 8.5f));
             AeroDraw.AddRow(grid, "", AeroDraw.Caption("ARM, DISARM and TAKEOFF always require confirmation.", 8.5f));
@@ -57,6 +67,9 @@ namespace MissionPlanner.AeroAid.Views
                 cooldown.Value = VoiceSettings.CooldownSeconds;
                 confirmStop.Checked = VoiceSettings.ConfirmStopHold;
                 confirmRtl.Checked = VoiceSettings.ConfirmRtlLand;
+                wakeWord.Text = VoiceSettings.WakePhrase;
+                var mode = VoiceSettings.RequirePrefix;
+                wakeMode.SelectedItem = mode == VoicePrefixMode.Critical ? WakeCriticalText : mode == VoicePrefixMode.All ? WakeAllText : WakeOptionalText;
             }, () =>
             {
                 var engineChanged = (engine.SelectedItem as string == EngineWindowsText) != (VoiceSettings.Engine == VoiceSettings.EngineWindows);
@@ -71,10 +84,15 @@ namespace MissionPlanner.AeroAid.Views
                 VoiceSettings.CooldownSeconds = (int)cooldown.Value;
                 VoiceSettings.ConfirmStopHold = confirmStop.Checked;
                 VoiceSettings.ConfirmRtlLand = confirmRtl.Checked;
+                var wakeChanged = VoiceCommandParser.Normalize(wakeWord.Text) != VoiceSettings.WakePhrase;
+                VoiceSettings.WakePhrase = wakeWord.Text;
+                VoiceSettings.RequirePrefix = wakeMode.SelectedItem as string == WakeCriticalText ? VoicePrefixMode.Critical
+                    : wakeMode.SelectedItem as string == WakeAllText ? VoicePrefixMode.All : VoicePrefixMode.Optional;
                 if (!enabled.Checked)
                     VoiceCommandEngine.Instance.StopListening("Voice control disabled.");
-                else if (engineChanged && VoiceCommandEngine.Instance.Listening)
-                    VoiceCommandEngine.Instance.StopListening("Speech engine changed - press Start listening.");
+                else if ((engineChanged || wakeChanged) && VoiceCommandEngine.Instance.Listening)
+                    // the recogniser vocabulary contains the wake word: it is rebuilt when listening starts again
+                    VoiceCommandEngine.Instance.StopListening((engineChanged ? "Speech engine" : "Wake word") + " changed - press Start listening.");
             });
             return card;
         }

@@ -1,5 +1,126 @@
 # AeroAid GCS — voice control test report
 
+## Repair, 2026-11-20 (read this first)
+
+The earlier report below (2026-11-17) was produced with synthetic speech in **perfectly steady** background
+noise. Your real log (`Documents\Mission Planner\aeroaid_voice.log`, 18 Nov) showed that on your laptop
+microphone the system still failed. This repair found and fixed the causes.
+
+### Root causes, measured
+
+| # | Cause | Evidence | Fix |
+|---|---|---|---|
+| 1 | **Voice-activity detector never ended an utterance** when the background level fluctuates (laptop microphone arrays with Windows voice processing do). Its noise floor tracked the *minimum* of the background, and it needed *every* frame of the 650 ms pause to be quiet. So each utterance ran to the 6 s limit and collected seconds of noise. | Your log: 11 of 19 attempts were recognised **correctly** (`"disarm"`, `"take off"`, `"stop"`, `"hold"` at confidence 1.00) and then rejected as `INCOMPLETE - 2500 ms of your speech was not recognised`. Noise was also decoded as words (`"vehicle"`, `"auto"`), and repeats were merged (`"arm arm"`). Reproduced: `VoiceRealNoiseTests.UtteranceEndsSoonAfterSpeechInFluctuatingNoise` **failed on the old detector** (6000 ms utterance, end 5040 ms after speech, for frame-level fluctuation ≥ 3 dB). | Noise model = median and 90th percentile of the last 3 s of background. Thresholds sit above the background's own fluctuation. The utterance ends when ≤ 12 % of the last 650 ms were speech. A sudden louder background is learned after one segment. The completeness check uses the same threshold. **Now the utterance ends 500–620 ms after speech in every tested condition.** |
+| 2 | **Native crash of the whole application.** GStreamer's 2018 `libwinpthread-1.dll` (`C:\ProgramData\Mission Planner\gstreamer\…`) gets loaded before libvosk. Windows then gives libvosk that DLL instead of its own, and Kaldi aborts the process: `ASSERTION_FAILED (VoskAPI:RunTask():util/kaldi-thread.h:263)`. | Reproduced in 2 of 3 test runs (camera tests, then a Vosk test). A module listing confirmed GStreamer's DLL in the process. | `VoskNativeRuntime.Preload()` (first line of `Program.Main`) loads Vosk's own MinGW runtime by absolute path. Before libvosk is loaded, `FindConflict()` checks again: if a foreign copy is present, Vosk is refused with a message instead of crashing. **0 crashes in 5 of 5 runs after the fix; GStreamer still loads.** |
+| 3 | "Take off five meters", "AeroAid, arm" were **impossible**: numbers, units and the wake word were not in the recogniser vocabulary or the parser. | Parser: `"take off five meters"` → UNCLEAR. | Wake word (configurable) and spoken altitude added (§ below). |
+| 4 | A command said twice (`"arm arm"`, often because cause 1 made it seem unheard) was rejected. | Your log. | An immediate repeat of the **same** phrase is one command. Different commands are still AMBIGUOUS. |
+| 5 | The committed source did not compile: `VoiceTakeoffWorkflow.cs` called a removed method. | Build error CS1061. | The file was dead code, replaced by `VoiceCommandController`, so it was removed. |
+
+### Speech engine: kept Vosk (offline, command vocabulary)
+
+Re-checked against the 4,980-clip benchmark below and the requirements. Vosk restricted to the command
+vocabulary is still the best fit:
+- 97.8 % on clean audio, versus 91.7 % for the best Whisper set-up;
+- "arm" 91.7 % versus 86 %; "disarm" 100 % versus 53 %;
+- about 0.1 s per command versus 2.5 s, on the CPU, with no Python service.
+
+The failures you saw came from the audio front end and a native DLL clash, not from the engine. **No new
+dependency was added.**
+
+### What changed for the operator
+
+- **Wake word** "AeroAid" (spoken "aero aid"). It is configurable in Settings › Voice, and you choose when it is required:
+  - *Optional* (default);
+  - *Required for ARM / DISARM / TAKEOFF* (recommended when other people talk nearby);
+  - *Required for every command*.
+
+  Without it, a required command is shown as `WAKE WORD MISSING - NO ACTION`. STOP / HOLD / RTL / LAND stay
+  available without it in the middle setting.
+- **Spoken altitude:** "take off five meters", "take off to five meters", "takeoff at 10 metres", "take off twenty five".
+  - It must come directly after "take off".
+  - Anything malformed ("take off two five meters", "take off to meters") is UNCLEAR and never guessed.
+  - It is validated against the maximum altitude and **refused, not clamped**, if it is outside 1…max.
+  - The confirmation dialog shows "TAKE OFF to 5 m … (altitude as spoken)".
+- **Voice page** now shows:
+  - the spoken altitude;
+  - whether the wake word was heard and whether it is required;
+  - the utterance length and the measured recognition time;
+  - the confidence, labelled as reported by the recogniser.
+
+  When speech is detected but nothing is recognised, or an utterance hits the length limit, this is written
+  to `aeroaid_voice.log`.
+- **Unchanged safety rules:**
+  - ARM / DISARM / TAKEOFF always need a Yes in the GCS dialog; voice cannot answer it;
+  - checks are re-run after the dialog;
+  - arming is never forced, and ArduPilot pre-arm checks apply;
+  - DISARM is refused in the air;
+  - cool-downs and de-duplication still apply;
+  - Test Mode never sends anything.
+
+### Results (measured 2026-11-20; synthetic Windows TTS voices David and Zira, en-US)
+
+| Test | Result |
+|---|---|
+| Utterance end after speech, background fluctuating 0.5–4.5 dB, −62 to −44 dBFS (36 cases) | old: **6000 ms utterances** at ≥ 3 dB fluctuation · new: **500–620 ms** after speech, all cases |
+| 13 commands × 2 voices in fluctuating noise (incl. "Aero Aid, arm the drone", "Take off to five meters", "Aero Aid, take off five meters") | **26 / 26**, 0 wrong. Altitude parsed as 5 m |
+| Low microphone volume (speech −30 dB, background −70 dBFS) | **25 / 26**, 0 wrong |
+| Noisy room (background −38 dBFS, fluctuating 4 dB) | **26 / 26**, 0 wrong |
+| Original live-pipeline test (16 commands × 2 voices × 3 speeds, steady noise) | **95 / 96**, 0 wrong (unchanged) |
+| Negated / ambiguous / unrelated sentences, incl. "My arm hurts", "The alarm is ringing" (12 × 2 voices) | **0 commands** |
+| Two commands 0.9 s apart ("Arm." … "Land.") | two separate commands, ARM then LAND |
+| Fluctuating background alone (20 s), sudden +27 dB background step | 0 utterances; step learned after 1 segment |
+| Recognition time after the utterance ends (decode + classify) | **45–112 ms**, average 73 ms |
+| End-of-speech → decision | ≈ 0.6–0.7 s (end detection ≈ 0.55 s + decode). Before: up to ≈ 5 s in fluctuating noise |
+| "disarm" → ARM, "alarm"/"harm"/"army"/"armed"/"my arm hurts" → ARM (parser, 11 phrases × 2 modes) | never |
+| Spoken altitude through the controller (fake vehicle): confirmed and sent as 5 m; above the limit → refused, no dialog | pass |
+| Native runtime: Vosk after GStreamer is loaded | no conflict, GStreamer still loads, 5 / 5 runs without a crash |
+| Build (`dotnet build`, Release) | **0 errors** |
+| Whole test DLL (351 tests) | **337 passed, 11 failed, 3 skipped** (corpus, loopback and SITL tests run only on demand). None of the failures is voice: 10 stock Mission Planner tests need internet/GitHub or hardware (`DetectBoard*`, `getFilefromNet`, `GetFileSize`, `GetDir/FileContent`), and 1 is `CentralLogoIsAeroaidPngAndLoads`, because a stray `Assets/Branding/logo.png` was re-added by the "Upload complete project" commit. All voice tests pass. |
+
+### Not tested by me — please do these
+
+| Item | Why not | How |
+|---|---|---|
+| **Your voice, Pakistani-English accent** | No microphone access and no en-PK recordings. Synthetic voices are cleaner than people. | Live test below |
+| ArduCopter SITL (real MAVLink) | The SITL binary was downloaded, but running it was not permitted in my session | SITL steps below |
+| Unplugging a real microphone | No hardware | It is covered with a fake device (`VoiceEngineTests`); try it once live |
+
+**Live microphone test (about 10 minutes, nothing is sent to the vehicle):**
+1. Build Release, start AeroAid, open **Voice & Microphone**. **Test Mode** must be ON (the default).
+2. Select your microphone and press **Microphone ON**, then **Test microphone**. The verdict should be GOOD.
+3. Press **Test voice recognition**. For each target button (ARM, DISARM, TAKEOFF, LAND, RTL, NEGATED), say the
+   command 10 times in your normal voice. Use these forms:
+   - "arm", "arm the drone", "aero aid arm";
+   - "disarm", "aero aid disarm the drone";
+   - "take off", "take off five meters", "aero aid take off to five meters";
+   - "land", "return to launch";
+   - for NEGATED: "do not arm the drone".
+4. Repeat a few with a fan on and with someone talking nearby.
+5. Press **Save accuracy report** (written to `Documents\Mission Planner\AeroAid\voice-tests\`). Check that
+   there are **0 WRONG COMMAND** entries.
+6. In `aeroaid_voice.log`, every line now has `utt=… ms decode=… ms`. Utterances should be about 1–3.5 s, not ~6 s.
+7. If "arm" alone is missed more often than "aero aid arm", set the wake word to *Required for ARM / DISARM /
+   TAKEOFF*. The longer phrase is easier to recognise and safer.
+
+**SITL (simulated MAVLink, no real vehicle):**
+1. Start ArduCopter SITL: either Mission Planner's **Simulation** tab (Multirotor), or
+   `ArduCopter.exe -M+ -O-35.363261,149.165230,584,353 -s1 --serial0 tcp:0 --defaults copter.parm`
+   from the official files at `firmware.ardupilot.org/Tools/MissionPlanner/sitl/CopterStable/`.
+2. `set AEROAID_SITL=127.0.0.1:5760`, then run
+   `vstest.console.exe MissionPlannerTests.dll /Platform:x64 /Tests:FullVoiceWorkflowOnSitl`
+   (or `dotnet test MissionPlannerTests\bin\Release\net472\MissionPlannerTests.dll --filter FullVoiceWorkflowOnSitl`).
+   The test runs:
+   - negation and question → nothing happens;
+   - blocked commands → no dialog;
+   - voice ARM;
+   - **"Aero Aid, take off to five meters"** (the default altitude is set to 3 m), and it checks the copter climbs above 4 m;
+   - DISARM in the air → refused;
+   - land, then voice ARM and voice DISARM on the ground.
+
+---
+
+## Earlier report (2026-11-17)
+
 | | |
 |---|---|
 | Date | 2026-11-17 |

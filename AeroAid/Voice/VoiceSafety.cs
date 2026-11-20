@@ -49,15 +49,20 @@ namespace MissionPlanner.AeroAid.Voice
             }
         }
 
-        /// <summary>Takeoff altitude that will be commanded: the configured value, limited to [1, max altitude].</summary>
-        public static double TakeoffAltitude() =>
-            Math.Max(1, Math.Min(AeroSettings.TakeoffAltitude, AeroSettings.MaxAltitude));
+        /// <summary>
+        /// Takeoff altitude that will be commanded: the SPOKEN altitude when one was given ("take off five meters" -
+        /// validated by <see cref="Check"/>, never silently changed), else the configured value limited to
+        /// [1, max altitude].
+        /// </summary>
+        public static double TakeoffAltitude(double? spoken = null) =>
+            spoken ?? Math.Max(1, Math.Min(AeroSettings.TakeoffAltitude, AeroSettings.MaxAltitude));
 
         /// <summary>
         /// Validates <paramref name="command"/> against the vehicle state. Returns the failures (empty = allowed);
-        /// passed checks are added to <paramref name="passed"/>.
+        /// passed checks are added to <paramref name="passed"/>. <paramref name="spokenAltitude"/> = altitude spoken
+        /// with a TAKEOFF command (null = configured default).
         /// </summary>
-        public static List<string> Check(VoiceCommand command, TelemetrySnapshot t, List<string> passed)
+        public static List<string> Check(VoiceCommand command, TelemetrySnapshot t, List<string> passed, double? spokenAltitude = null)
         {
             var fail = new List<string>();
             passed = passed ?? new List<string>();
@@ -84,7 +89,7 @@ namespace MissionPlanner.AeroAid.Voice
                     CheckDisarm(t, Rule);
                     break;
                 case VoiceCommand.Takeoff:
-                    CheckTakeoff(t, Rule);
+                    CheckTakeoff(t, Rule, spokenAltitude);
                     break;
                 case VoiceCommand.Stop:
                     CheckModeCommand(t, Rule, "STOP", new[] { "BRAKE" }, true);
@@ -124,7 +129,7 @@ namespace MissionPlanner.AeroAid.Voice
                 "Voice disarm is refused in the air - land first (LAND / RTL).");
         }
 
-        private static void CheckTakeoff(TelemetrySnapshot t, Action<bool, string, string> rule)
+        private static void CheckTakeoff(TelemetrySnapshot t, Action<bool, string, string> rule, double? spoken)
         {
             rule(t.IsCopter, "ArduCopter connected", "Voice takeoff supports ArduCopter only (connected: " + t.Firmware + ").");
             rule(t.Armed, "Vehicle is armed", "Vehicle is not armed - say \"arm\" first, then \"take off\".");
@@ -132,10 +137,20 @@ namespace MissionPlanner.AeroAid.Voice
             rule(In(t.Mode, TakeoffModes),
                 string.Equals(ModeKey(t.Mode), "GUIDED") ? "Mode GUIDED" : "Mode " + t.Mode.ToUpperInvariant() + " (will switch to GUIDED)",
                 $"Takeoff is not allowed from {t.Mode.ToUpperInvariant()} mode - use GUIDED, LOITER, ALT_HOLD, POSHOLD or STABILIZE.");
-            var alt = TakeoffAltitude();
-            rule(AeroSettings.TakeoffAltitude >= 1 && AeroSettings.TakeoffAltitude <= AeroSettings.MaxAltitude,
-                $"Takeoff altitude {alt:0.#} m (limit {AeroSettings.MaxAltitude:0} m)",
-                $"Configured takeoff altitude {AeroSettings.TakeoffAltitude:0.#} m is outside 1..{AeroSettings.MaxAltitude:0} m (Settings › Flight).");
+            if (spoken.HasValue)
+            {
+                // a spoken altitude outside the limits is refused, never clamped: the operator must hear what is flown
+                rule(spoken.Value >= 1 && spoken.Value <= AeroSettings.MaxAltitude,
+                    $"Spoken takeoff altitude {spoken.Value:0.#} m (limit {AeroSettings.MaxAltitude:0} m)",
+                    $"Spoken takeoff altitude {spoken.Value:0.#} m is outside 1..{AeroSettings.MaxAltitude:0} m (maximum altitude: Settings › Flight).");
+            }
+            else
+            {
+                var alt = TakeoffAltitude();
+                rule(AeroSettings.TakeoffAltitude >= 1 && AeroSettings.TakeoffAltitude <= AeroSettings.MaxAltitude,
+                    $"Takeoff altitude {alt:0.#} m (configured default, limit {AeroSettings.MaxAltitude:0} m)",
+                    $"Configured takeoff altitude {AeroSettings.TakeoffAltitude:0.#} m is outside 1..{AeroSettings.MaxAltitude:0} m (Settings › Flight).");
+            }
             CommonReadiness(t, rule, true);
         }
 
